@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ConductorOne/baton-bitbucket/common"
+	"github.com/ConductorOne/baton-bitbucket/pkg/connector"
 	"github.com/conductorone/baton-sdk/pkg/cli"
+	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/sdk"
 	"github.com/conductorone/baton-sdk/pkg/types"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
@@ -25,6 +28,7 @@ func main() {
 	}
 
 	cmd.Version = version
+	cmdFlags(cmd)
 
 	err = cmd.Execute()
 	if err != nil {
@@ -33,10 +37,34 @@ func main() {
 	}
 }
 
+func constructAuth(cfg *config) (common.AuthOption, error) {
+	if cfg.AccessToken != "" {
+		return common.WithBearerAuth(cfg.AccessToken), nil
+	}
+
+	if cfg.Username != "" {
+		return common.WithBasicAuth(cfg.Username, cfg.Password), nil
+	}
+
+	return nil, fmt.Errorf("Invalid config")
+}
+
 func getConnector(ctx context.Context, cfg *config) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
 
-	c, err := sdk.NewEmptyConnector()
+	// compose the auth options
+	auth, err := constructAuth(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	bitbucketConnector, err := connector.New(ctx, cfg.Workspaces, auth)
+	if err != nil {
+		l.Error("error creating connector", zap.Error(err))
+		return nil, err
+	}
+
+	c, err := connectorbuilder.NewConnector(ctx, bitbucketConnector)
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
 		return nil, err

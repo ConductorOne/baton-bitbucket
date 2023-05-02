@@ -16,7 +16,6 @@ var (
 	resourceTypeWorkspace = &v2.ResourceType{
 		Id:          "workspace",
 		DisplayName: "Workspace",
-		Traits:      []v2.ResourceType_Trait{},
 	}
 	resourceTypeUser = &v2.ResourceType{
 		Id:          "user",
@@ -34,11 +33,7 @@ type BitBucket struct {
 func (bb *BitBucket) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
 		workspaceBuilder(bb.client),
-		// projectBuilder(bb.client),
-		// userGroupBuilder(bb.client),
 		userBuilder(bb.client),
-		// are these neccessary?
-		// roleBuilder(bb.client),
 	}
 }
 

@@ -20,21 +20,18 @@ type workspaceResourceType struct {
 	client       *bitbucket.Client
 }
 
-func (workspace *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType {
-	return workspace.resourceType
+func (w *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType {
+	return w.resourceType
 }
 
 // Create a new connector resource for an BitBucket workspace.
-func workspaceResource(ctx context.Context, workspace *bitbucket.Workspace, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
+func workspaceResource(ctx context.Context, workspace *bitbucket.Workspace) (*v2.Resource, error) {
 	resource, err := rs.NewResource(
 		fmt.Sprint(workspace.Slug),
 		resourceTypeWorkspace,
-		workspace.Slug,
-		rs.WithParentResourceID(parentResourceID),
+		workspace.Id,
 		rs.WithAnnotation(
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUser.Id},
-			// &v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id},
-			// &v2.ChildResourceType{ResourceTypeId: resourceTypeRole.Id},
 		),
 	)
 
@@ -45,14 +42,14 @@ func workspaceResource(ctx context.Context, workspace *bitbucket.Workspace, pare
 	return resource, nil
 }
 
-func (workspace *workspaceResourceType) List(ctx context.Context, parentId *v2.ResourceId, token *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, token *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	// parse the token
 	bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	workspaces, nextToken, annotations, err := workspace.client.GetWorkspaces(
+	workspaces, nextToken, annotations, err := w.client.GetWorkspaces(
 		ctx,
 		bitbucket.PaginationVars{
 			Limit: ResourcesPageSize,
@@ -72,7 +69,7 @@ func (workspace *workspaceResourceType) List(ctx context.Context, parentId *v2.R
 	for _, workspace := range workspaces {
 		workspaceCopy := workspace
 
-		ar, err := workspaceResource(ctx, &workspaceCopy, parentId)
+		ar, err := workspaceResource(ctx, &workspaceCopy)
 		if err != nil {
 			return nil, "", nil, err
 		}
@@ -83,7 +80,7 @@ func (workspace *workspaceResourceType) List(ctx context.Context, parentId *v2.R
 	return rv, pageToken, annotations, nil
 }
 
-func (workspace *workspaceResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (w *workspaceResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	var rv []*v2.Entitlement
 
 	assignmentOptions := []ent.EntitlementOption{
@@ -102,14 +99,14 @@ func (workspace *workspaceResourceType) Entitlements(ctx context.Context, resour
 	return rv, "", nil, nil
 }
 
-func (workspace *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
+func (w *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
 	// parse the roleIds from the users
 	bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	users, nextToken, annotations, err := workspace.client.GetWorkspaceMembers(
+	users, nextToken, annotations, err := w.client.GetWorkspaceMembers(
 		ctx,
 		resource.Id.Resource,
 		bitbucket.PaginationVars{Limit: ResourcesPageSize, Page: bag.PageToken()},

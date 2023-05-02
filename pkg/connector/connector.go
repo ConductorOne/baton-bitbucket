@@ -18,24 +18,6 @@ var (
 		DisplayName: "Workspace",
 		Traits:      []v2.ResourceType_Trait{},
 	}
-	// resourceTypeProject = &v2.ResourceType{
-	// 	Id:          "project",
-	// 	DisplayName: "Project",
-	// 	Traits: []v2.ResourceType_Trait{
-	// 		v2.ResourceType_TRAIT_GROUP,
-	// 	},
-	// }
-	// resourceTypeRepository = &v2.ResourceType{
-	// 	Id:          "repository",
-	// 	DisplayName: "Repository",
-	// }
-	// resourceTypeUserGroup = &v2.ResourceType{
-	// 	Id:          "user_group",
-	// 	DisplayName: "UserGroup",
-	// 	Traits: []v2.ResourceType_Trait{
-	// 		v2.ResourceType_TRAIT_GROUP,
-	// 	},
-	// }
 	resourceTypeUser = &v2.ResourceType{
 		Id:          "user",
 		DisplayName: "User",
@@ -43,13 +25,6 @@ var (
 			v2.ResourceType_TRAIT_USER,
 		},
 	}
-	// resourceTypeRole = &v2.ResourceType{
-	// 	Id:          "role",
-	// 	DisplayName: "Role",
-	// 	Traits: []v2.ResourceType_Trait{
-	// 		v2.ResourceType_TRAIT_ROLE,
-	// 	},
-	// }
 )
 
 type BitBucket struct {

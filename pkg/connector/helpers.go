@@ -1,6 +1,7 @@
 package connector
 
 import (
+	"github.com/ConductorOne/baton-bitbucket/pkg/bitbucket"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"golang.org/x/text/cases"
@@ -25,4 +26,14 @@ func parsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, error
 	}
 
 	return b, nil
+}
+
+func mapUserIds(users []bitbucket.User) []string {
+	ids := make([]string, len(users))
+
+	for i, user := range users {
+		ids[i] = user.Id
+	}
+
+	return ids
 }

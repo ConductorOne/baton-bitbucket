@@ -38,13 +38,9 @@ type WorkspaceMembersResponse struct {
 	PaginationData
 }
 
-type WorkspaceUserGroupsResponse struct {
-	Results []UserGroup
-}
+type WorkspaceUserGroupsResponse = []UserGroup
 
-type UserResponse struct {
-	Result User
-}
+type UserResponse = User
 
 type PaginationVars struct {
 	Limit int
@@ -132,7 +128,7 @@ func (c *Client) GetWorkspaceUserGroups(ctx context.Context, workspaceId string)
 		return nil, nil, err
 	}
 
-	return workspaceUserGroupsResponse.Results, annos, nil
+	return workspaceUserGroupsResponse, annos, nil
 }
 
 // GetUser get detail information about specified user.
@@ -151,7 +147,7 @@ func (c *Client) GetUser(ctx context.Context, userId string) (*User, annotations
 		return nil, nil, err
 	}
 
-	return &userResponse.Result, annos, nil
+	return &userResponse, annos, nil
 }
 
 func (c *Client) doRequest(ctx context.Context, url string, resourceResponse interface{}, queryParams url.Values) (annotations.Annotations, error) {

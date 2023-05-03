@@ -17,6 +17,13 @@ var (
 		Id:          "workspace",
 		DisplayName: "Workspace",
 	}
+	resourceTypeUserGroup = &v2.ResourceType{
+		Id:          "user_group",
+		DisplayName: "UserGroup",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_GROUP,
+		},
+	}
 	resourceTypeUser = &v2.ResourceType{
 		Id:          "user",
 		DisplayName: "User",
@@ -34,6 +41,7 @@ func (bb *BitBucket) ResourceSyncers(ctx context.Context) []connectorbuilder.Res
 	return []connectorbuilder.ResourceSyncer{
 		workspaceBuilder(bb.client),
 		userBuilder(bb.client),
+		userGroupBuilder(bb.client),
 	}
 }
 

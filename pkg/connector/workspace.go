@@ -27,11 +27,12 @@ func (w *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType
 // Create a new connector resource for an BitBucket workspace.
 func workspaceResource(ctx context.Context, workspace *bitbucket.Workspace) (*v2.Resource, error) {
 	resource, err := rs.NewResource(
-		fmt.Sprint(workspace.Slug),
+		workspace.Slug,
 		resourceTypeWorkspace,
 		workspace.Id,
 		rs.WithAnnotation(
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUser.Id},
+			&v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id},
 		),
 	)
 

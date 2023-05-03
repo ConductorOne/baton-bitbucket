@@ -19,7 +19,6 @@ type User struct {
 	BaseResource
 	Name     string `json:"display_name"`
 	Nickname string `json:"nickname"`
-	Email    string `json:"email"`
 }
 
 type PaginationData struct {

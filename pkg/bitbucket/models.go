@@ -28,6 +28,13 @@ type UserGroup struct {
 	Members    []User `json:"members"`
 }
 
+type Project struct {
+	BaseResource
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
 type PaginationData struct {
 	Next string `json:"next"`
 }

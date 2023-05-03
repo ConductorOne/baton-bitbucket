@@ -19,6 +19,7 @@ const (
 
 	WorkspacesBaseURL          = BaseURL + "workspaces"
 	WorkspaceMembersBaseURL    = WorkspacesBaseURL + "/%s/members"
+	WorkspaceProjectsBaseURL   = WorkspacesBaseURL + "/%s/projects"
 	WorkspaceUserGroupsBaseURL = V1BaseURL + "groups/%s"
 	UserBaseURL                = BaseURL + "users/%s"
 )
@@ -29,18 +30,23 @@ type Client struct {
 }
 
 type WorkspacesResponse struct {
-	Results []Workspace `json:"values"`
+	Values []Workspace `json:"values"`
 	PaginationData
 }
 
 type WorkspaceMembersResponse struct {
-	Results []WorkspaceMember `json:"values"`
+	Values []WorkspaceMember `json:"values"`
 	PaginationData
 }
 
 type WorkspaceUserGroupsResponse = []UserGroup
 
 type UserResponse = User
+
+type WorkspaceProjectsResponse struct {
+	Values []Project `json:"values"`
+	PaginationData
+}
 
 type PaginationVars struct {
 	Limit int
@@ -80,10 +86,10 @@ func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars Pagination
 	}
 
 	if workspaceResponse.Next != "" {
-		return workspaceResponse.Results, parsePageFromURL(workspaceResponse.Next), annos, nil
+		return workspaceResponse.Values, parsePageFromURL(workspaceResponse.Next), annos, nil
 	}
 
-	return workspaceResponse.Results, "", annos, nil
+	return workspaceResponse.Values, "", annos, nil
 }
 
 // GetWorkspaceMembers lists all users that belong under specified workspace.
@@ -103,7 +109,7 @@ func (c *Client) GetWorkspaceMembers(ctx context.Context, workspaceId string, ge
 		return nil, "", nil, err
 	}
 
-	results := mapUsers(workspaceMembersResponse.Results)
+	results := mapUsers(workspaceMembersResponse.Values)
 
 	if workspaceMembersResponse.Next != "" {
 		return results, parsePageFromURL(workspaceMembersResponse.Next), annos, nil
@@ -148,6 +154,30 @@ func (c *Client) GetUser(ctx context.Context, userId string) (*User, annotations
 	}
 
 	return &userResponse, annos, nil
+}
+
+// GetWorkspaceProjects lists all projects that belong under specified workspace.
+func (c *Client) GetWorkspaceProjects(ctx context.Context, workspaceId string, getWorkspaceProjectsVars PaginationVars) ([]Project, string, annotations.Annotations, error) {
+	queryParams := setupPaginationQuery(url.Values{}, getWorkspaceProjectsVars.Limit)
+	encodedWorkspaceId := url.PathEscape(workspaceId)
+
+	var workspaceProjectsResponse WorkspaceProjectsResponse
+	annos, err := c.doRequest(
+		ctx,
+		fmt.Sprintf(WorkspaceProjectsBaseURL, encodedWorkspaceId),
+		&workspaceProjectsResponse,
+		queryParams,
+	)
+
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	if workspaceProjectsResponse.Next != "" {
+		return workspaceProjectsResponse.Values, parsePageFromURL(workspaceProjectsResponse.Next), annos, nil
+	}
+
+	return workspaceProjectsResponse.Values, "", annos, nil
 }
 
 func (c *Client) doRequest(ctx context.Context, url string, resourceResponse interface{}, queryParams url.Values) (annotations.Annotations, error) {

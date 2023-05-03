@@ -69,12 +69,12 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, toke
 	for _, workspace := range workspaces {
 		workspaceCopy := workspace
 
-		ar, err := workspaceResource(ctx, &workspaceCopy)
+		wr, err := workspaceResource(ctx, &workspaceCopy)
 		if err != nil {
 			return nil, "", nil, err
 		}
 
-		rv = append(rv, ar)
+		rv = append(rv, wr)
 	}
 
 	return rv, pageToken, annotations, nil

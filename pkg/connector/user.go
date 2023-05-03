@@ -2,6 +2,8 @@ package connector
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/ConductorOne/baton-bitbucket/pkg/bitbucket"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -21,19 +23,32 @@ func (u *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 
 // Create a new connector resource for an BitBucket user.
 func userResource(ctx context.Context, user *bitbucket.User, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
+	names := strings.SplitN(user.Name, " ", 2)
+	var firstName, lastName string
+	switch len(names) {
+	case 1:
+		firstName = names[0]
+	case 2:
+		firstName = names[0]
+		lastName = names[1]
+	}
+
 	profile := map[string]interface{}{
-		"login":   user.Email,
-		"user_id": user.Id,
+		"first_name": firstName,
+		"last_name":  lastName,
+		"login":      user.Nickname,
+		"user_id":    user.Id,
 	}
 
 	userTraitOptions := []rs.UserTraitOption{
 		rs.WithUserProfile(profile),
-		rs.WithEmail(user.Email, true),
 		rs.WithStatus(v2.UserTrait_Status_STATUS_UNSPECIFIED),
+		// TODO: research retrieving email from BitBucket
+		// rs.WithEmail(user.Email, true),
 	}
 
 	resource, err := rs.NewUserResource(
-		user.Email, // email as a name
+		user.Name,
 		resourceTypeUser,
 		user.Id,
 		userTraitOptions,
@@ -48,7 +63,46 @@ func userResource(ctx context.Context, user *bitbucket.User, parentResourceID *v
 }
 
 func (u *userResourceType) List(ctx context.Context, parentId *v2.ResourceId, token *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+	if parentId == nil {
+		return nil, "", nil, nil
+	}
+
+	// parse the token
+	bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	users, nextToken, annotations, err := u.client.GetWorkspaceMembers(
+		ctx,
+		parentId.Resource,
+		bitbucket.PaginationVars{
+			Limit: ResourcesPageSize,
+			Page:  bag.PageToken(),
+		},
+	)
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list user: %w", err)
+	}
+
+	pageToken, err := bag.NextToken(nextToken)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	var rv []*v2.Resource
+	for _, user := range users {
+		userCopy := user
+
+		ur, err := userResource(ctx, &userCopy, parentId)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		rv = append(rv, ur)
+	}
+
+	return rv, pageToken, annotations, nil
 }
 
 func (u *userResourceType) Entitlements(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {

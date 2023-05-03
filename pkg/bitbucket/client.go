@@ -77,13 +77,14 @@ func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars Pagination
 }
 
 // GetWorkspaces lists all workspaces current user belongs to.
-func (c *Client) GetWorkspaceMembers(ctx context.Context, workspaceSlug string, getWorkspacesVars PaginationVars) ([]User, string, annotations.Annotations, error) {
+func (c *Client) GetWorkspaceMembers(ctx context.Context, workspaceId string, getWorkspacesVars PaginationVars) ([]User, string, annotations.Annotations, error) {
 	queryParams := setupPaginationQuery(url.Values{}, getWorkspacesVars.Limit)
+	encodedWorkspaceId := url.PathEscape(workspaceId)
 
 	var workspaceMembersResponse WorkspaceMembersResponse
 	annos, err := c.doRequest(
 		ctx,
-		fmt.Sprintf(WorkspaceMembersBaseURL, workspaceSlug),
+		fmt.Sprintf(WorkspaceMembersBaseURL, encodedWorkspaceId),
 		&workspaceMembersResponse,
 		queryParams,
 	)

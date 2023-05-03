@@ -31,9 +31,9 @@ func workspaceResource(ctx context.Context, workspace *bitbucket.Workspace) (*v2
 		resourceTypeWorkspace,
 		workspace.Id,
 		rs.WithAnnotation(
+			&v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id},
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUser.Id},
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeProject.Id},
-			&v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id},
 		),
 	)
 

@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/ConductorOne/baton-bitbucket/pkg/bitbucket"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -51,21 +52,21 @@ func (r *repositoryResourceType) List(ctx context.Context, parentId *v2.Resource
 	}
 
 	// parse the token
-	bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+	bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeRepository.Id})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	// TODO: get the workspace id from the parent resource
-	// workspaceId, err := getWorkspaceIdFromProject(parentId)
-	// if err != nil {
-	// 	return nil, "", nil, err
-	// }
+	parts := strings.Split(parentId.Resource, ":")
+	if len(parts) != 2 {
+		return nil, "", nil, fmt.Errorf("bitbucket-connector: invalid parent resource id: %s", parentId.Resource)
+	}
 
+	workspaceId, projectId := parts[0], parts[1]
 	repositories, nextToken, annotations, err := r.client.GetProjectRepos(
 		ctx,
-		"WORKSPACE_ID",
-		parentId.Resource,
+		workspaceId,
+		projectId,
 		bitbucket.PaginationVars{
 			Limit: ResourcesPageSize,
 			Page:  bag.PageToken(),

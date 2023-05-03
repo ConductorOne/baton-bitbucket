@@ -28,10 +28,12 @@ func projectResource(ctx context.Context, project *bitbucket.Project, parentReso
 		"project_key":  project.Key,
 	}
 
+	composedId := fmt.Sprintf("%s:%s", parentResourceID.Resource, project.Id)
+
 	resource, err := rs.NewGroupResource(
 		project.Name,
 		resourceTypeProject,
-		project.Id,
+		composedId,
 		[]rs.GroupTraitOption{
 			rs.WithGroupProfile(profile),
 		},
@@ -54,7 +56,7 @@ func (p *projectResourceType) List(ctx context.Context, parentId *v2.ResourceId,
 	}
 
 	// parse the token
-	bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+	bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeProject.Id})
 	if err != nil {
 		return nil, "", nil, err
 	}

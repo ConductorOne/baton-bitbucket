@@ -17,6 +17,13 @@ var (
 		Id:          "workspace",
 		DisplayName: "Workspace",
 	}
+	resourceTypeProject = &v2.ResourceType{
+		Id:          "project",
+		DisplayName: "Project",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_GROUP,
+		},
+	}
 	resourceTypeUserGroup = &v2.ResourceType{
 		Id:          "user_group",
 		DisplayName: "UserGroup",
@@ -31,6 +38,10 @@ var (
 			v2.ResourceType_TRAIT_USER,
 		},
 	}
+	resourceTypeRepository = &v2.ResourceType{
+		Id:          "repository",
+		DisplayName: "Repository",
+	}
 )
 
 type BitBucket struct {
@@ -40,8 +51,10 @@ type BitBucket struct {
 func (bb *BitBucket) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
 		workspaceBuilder(bb.client),
+		projectBuilder(bb.client),
 		userBuilder(bb.client),
 		userGroupBuilder(bb.client),
+		repositoryBuilder(bb.client),
 	}
 }
 

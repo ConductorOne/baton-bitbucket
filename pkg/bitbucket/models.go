@@ -21,6 +21,13 @@ type User struct {
 	Nickname string `json:"nickname"`
 }
 
+type UserGroup struct {
+	Name       string `json:"name"`
+	Slug       string `json:"slug"`
+	Permission string `json:"permission"`
+	Members    []User `json:"members"`
+}
+
 type PaginationData struct {
 	Next string `json:"next"`
 }

@@ -13,9 +13,15 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const BaseURL = "https://api.bitbucket.org/2.0/"
-const WorkspacesBaseURL = BaseURL + "workspaces"
-const WorkspaceMembersBaseURL = WorkspacesBaseURL + "/%s/members"
+const (
+	V1BaseURL = "https://api.bitbucket.org/1.0/"
+	BaseURL   = "https://api.bitbucket.org/2.0/"
+
+	WorkspacesBaseURL          = BaseURL + "workspaces"
+	WorkspaceMembersBaseURL    = WorkspacesBaseURL + "/%s/members"
+	WorkspaceUserGroupsBaseURL = V1BaseURL + "groups/%s"
+	UserBaseURL                = BaseURL + "users/%s"
+)
 
 type Client struct {
 	httpClient *http.Client
@@ -30,6 +36,14 @@ type WorkspacesResponse struct {
 type WorkspaceMembersResponse struct {
 	Results []WorkspaceMember `json:"values"`
 	PaginationData
+}
+
+type WorkspaceUserGroupsResponse struct {
+	Results []UserGroup
+}
+
+type UserResponse struct {
+	Result User
 }
 
 type PaginationVars struct {
@@ -76,7 +90,7 @@ func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars Pagination
 	return workspaceResponse.Results, "", annos, nil
 }
 
-// GetWorkspaces lists all workspaces current user belongs to.
+// GetWorkspaceMembers lists all users that belong under specified workspace.
 func (c *Client) GetWorkspaceMembers(ctx context.Context, workspaceId string, getWorkspacesVars PaginationVars) ([]User, string, annotations.Annotations, error) {
 	queryParams := setupPaginationQuery(url.Values{}, getWorkspacesVars.Limit)
 	encodedWorkspaceId := url.PathEscape(workspaceId)
@@ -100,6 +114,44 @@ func (c *Client) GetWorkspaceMembers(ctx context.Context, workspaceId string, ge
 	}
 
 	return results, "", annos, nil
+}
+
+// GetWorkspaceUserGroups lists all user groups that belong under specified workspace.
+func (c *Client) GetWorkspaceUserGroups(ctx context.Context, workspaceId string) ([]UserGroup, annotations.Annotations, error) {
+	encodedWorkspaceId := url.PathEscape(workspaceId)
+
+	var workspaceUserGroupsResponse WorkspaceUserGroupsResponse
+	annos, err := c.doRequest(
+		ctx,
+		fmt.Sprintf(WorkspaceUserGroupsBaseURL, encodedWorkspaceId),
+		&workspaceUserGroupsResponse,
+		nil,
+	)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return workspaceUserGroupsResponse.Results, annos, nil
+}
+
+// GetUser get detail information about specified user.
+func (c *Client) GetUser(ctx context.Context, userId string) (*User, annotations.Annotations, error) {
+	encodedUserId := url.PathEscape(userId)
+
+	var userResponse UserResponse
+	annos, err := c.doRequest(
+		ctx,
+		fmt.Sprintf(UserBaseURL, encodedUserId),
+		&userResponse,
+		nil,
+	)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &userResponse.Result, annos, nil
 }
 
 func (c *Client) doRequest(ctx context.Context, url string, resourceResponse interface{}, queryParams url.Values) (annotations.Annotations, error) {

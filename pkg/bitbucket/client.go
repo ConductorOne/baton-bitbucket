@@ -21,6 +21,7 @@ const (
 	WorkspaceMembersBaseURL    = WorkspacesBaseURL + "/%s/members"
 	WorkspaceProjectsBaseURL   = WorkspacesBaseURL + "/%s/projects"
 	WorkspaceUserGroupsBaseURL = V1BaseURL + "groups/%s"
+	ProjectRepositoriesBaseURL = BaseURL + "repositories/%s?q=project.key=\"%s\""
 	UserBaseURL                = BaseURL + "users/%s"
 )
 
@@ -45,6 +46,11 @@ type UserResponse = User
 
 type WorkspaceProjectsResponse struct {
 	Values []Project `json:"values"`
+	PaginationData
+}
+
+type ProjectRepositoriesResponse struct {
+	Values []Repository `json:"values"`
 	PaginationData
 }
 
@@ -178,6 +184,30 @@ func (c *Client) GetWorkspaceProjects(ctx context.Context, workspaceId string, g
 	}
 
 	return workspaceProjectsResponse.Values, "", annos, nil
+}
+
+// GetProjectRepos lists all repositories that belong under specified project (which belongs under specified workspace).
+func (c *Client) GetProjectRepos(ctx context.Context, workspaceId string, projectId string, getWorkspaceProjectsVars PaginationVars) ([]Repository, string, annotations.Annotations, error) {
+	queryParams := setupPaginationQuery(url.Values{}, getWorkspaceProjectsVars.Limit)
+	encodedWorkspaceId := url.PathEscape(workspaceId)
+
+	var projectRepositoriesResponse ProjectRepositoriesResponse
+	annos, err := c.doRequest(
+		ctx,
+		fmt.Sprintf(ProjectRepositoriesBaseURL, encodedWorkspaceId, projectId),
+		&projectRepositoriesResponse,
+		queryParams,
+	)
+
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	if projectRepositoriesResponse.Next != "" {
+		return projectRepositoriesResponse.Values, parsePageFromURL(projectRepositoriesResponse.Next), annos, nil
+	}
+
+	return projectRepositoriesResponse.Values, "", annos, nil
 }
 
 func (c *Client) doRequest(ctx context.Context, url string, resourceResponse interface{}, queryParams url.Values) (annotations.Annotations, error) {

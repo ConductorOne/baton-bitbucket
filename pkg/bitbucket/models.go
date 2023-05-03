@@ -35,6 +35,14 @@ type Project struct {
 	Description string `json:"description"`
 }
 
+type Repository struct {
+	BaseResource
+	Slug        string `json:"slug"`
+	Name        string `json:"name"`
+	FullName    string `json:"full_name"`
+	Description string `json:"description"`
+}
+
 type PaginationData struct {
 	Next string `json:"next"`
 }

@@ -15,6 +15,14 @@ import (
 )
 
 const repoEntitlement = "repository"
+const (
+	roleRead   = "read"
+	roleWrite  = "write"
+	roleCreate = "create-repo"
+	roleAdmin  = "admin"
+)
+
+var projectPermissions = []string{roleRead, roleWrite, roleCreate, roleAdmin}
 
 type projectResourceType struct {
 	resourceType *v2.ResourceType
@@ -113,11 +121,26 @@ func (p *projectResourceType) Entitlements(ctx context.Context, resource *v2.Res
 		assignmentOptions...,
 	))
 
+	// create entitlements for each project role (read, write, create, admin)
+	for _, permission := range projectPermissions {
+		permissionOptions := []ent.EntitlementOption{
+			ent.WithGrantableTo(resourceTypeUserGroup, resourceTypeUser),
+			ent.WithDisplayName(fmt.Sprintf("%s Project %s", resource.DisplayName, permission)),
+			ent.WithDescription(fmt.Sprintf("%s access to %s project in BitBucket", titleCaser.String(permission), resource.DisplayName)),
+		}
+
+		rv = append(rv, ent.NewPermissionEntitlement(
+			resource,
+			permission,
+			permissionOptions...,
+		))
+	}
+
 	return rv, "", nil, nil
 }
 
 func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeProject.Id})
+	bag, err := parsePageToken(token.Token, resource.Id)
 	if err != nil {
 		return nil, "", nil, err
 	}
@@ -128,41 +151,158 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 	}
 
 	workspaceId, projectId := parts[0], parts[1]
-	repos, nextToken, _, err := p.client.GetProjectRepos(
-		ctx,
-		workspaceId,
-		projectId,
-		bitbucket.PaginationVars{
-			Limit: ResourcesPageSize,
-			Page:  bag.PageToken(),
-		},
-	)
-	if err != nil {
-		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list project repositories: %w", err)
-	}
 
-	pageToken, err := bag.NextToken(nextToken)
+	projectGroupTrait, err := rs.GetGroupTrait(resource)
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	// create membership grants
+	projectKey, ok := rs.GetProfileStringValue(projectGroupTrait.Profile, "project_key")
+	if !ok {
+		return nil, "", nil, fmt.Errorf("bitbucket-connector: project_key not found in project group profile")
+	}
+
 	var rv []*v2.Grant
-	for _, repo := range repos {
-		repoCopy := repo
-		rr, err := repositoryResource(ctx, &repoCopy, resource.ParentResourceId)
+
+	switch bag.ResourceTypeID() {
+	case resourceTypeProject.Id:
+		bag.Pop()
+		bag.Push(pagination.PageState{
+			ResourceTypeID: resourceTypeRepository.Id,
+		})
+		bag.Push(pagination.PageState{
+			ResourceTypeID: resourceTypeUserGroup.Id,
+		})
+		bag.Push(pagination.PageState{
+			ResourceTypeID: resourceTypeUser.Id,
+		})
+
+	// create a membership grant for each repository in the project
+	case resourceTypeRepository.Id:
+		repos, nextToken, _, err := p.client.GetProjectRepos(
+			ctx,
+			workspaceId,
+			projectId,
+			bitbucket.PaginationVars{
+				Limit: ResourcesPageSize,
+				Page:  bag.PageToken(),
+			},
+		)
+		if err != nil {
+			return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list project repositories: %w", err)
+		}
+
+		err = bag.Next(nextToken)
 		if err != nil {
 			return nil, "", nil, err
 		}
 
-		rv = append(
-			rv,
-			grant.NewGrant(
-				resource,
-				repoEntitlement,
-				rr.Id,
-			),
+		for _, repo := range repos {
+			repoCopy := repo
+			rr, err := repositoryResource(ctx, &repoCopy, resource.ParentResourceId)
+			if err != nil {
+				return nil, "", nil, err
+			}
+
+			rv = append(
+				rv,
+				grant.NewGrant(
+					resource,
+					repoEntitlement,
+					rr.Id,
+				),
+			)
+		}
+
+	// create a permission grant for each usergroup in the project
+	case resourceTypeUserGroup.Id:
+		permissions, nextToken, _, err := p.client.GetProjectGroupPermissions(
+			ctx,
+			workspaceId,
+			projectKey,
+			bitbucket.PaginationVars{
+				Limit: ResourcesPageSize,
+				Page:  bag.PageToken(),
+			},
 		)
+		if err != nil {
+			return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list project group permissions: %w", err)
+		}
+
+		err = bag.Next(nextToken)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		for _, permission := range permissions {
+			// check if the permission is supported project role
+			if !containsPermission(permission.Value, projectPermissions) {
+				continue
+			}
+
+			gr, err := userGroupResource(ctx, &permission.Group, resource.ParentResourceId)
+			if err != nil {
+				return nil, "", nil, err
+			}
+
+			rv = append(
+				rv,
+				grant.NewGrant(
+					resource,
+					permission.Value,
+					gr.Id,
+				),
+			)
+		}
+
+	// create a permission grant for each user in the project
+	case resourceTypeUser.Id:
+		permissions, nextToken, _, err := p.client.GetProjectUserPermissions(
+			ctx,
+			workspaceId,
+			projectKey,
+			bitbucket.PaginationVars{
+				Limit: ResourcesPageSize,
+				Page:  bag.PageToken(),
+			},
+		)
+		if err != nil {
+			return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list project user permissions: %w", err)
+		}
+
+		err = bag.Next(nextToken)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		for _, permission := range permissions {
+			// check if the permission is supported project role
+			if !containsPermission(permission.Value, projectPermissions) {
+				continue
+			}
+
+			ur, err := userResource(ctx, &permission.User, resource.ParentResourceId)
+			if err != nil {
+				return nil, "", nil, err
+			}
+
+			rv = append(
+				rv,
+				grant.NewGrant(
+					resource,
+					permission.Value,
+					ur.Id,
+				),
+			)
+		}
+
+	default:
+		return nil, "", nil, fmt.Errorf("bitbucket-connector: invalid grant resource type: %s", bag.ResourceTypeID())
+	}
+
+	pageToken, err := bag.Marshal()
+	if err != nil {
+		return nil, "", nil, err
 	}
 
 	return rv, pageToken, nil, nil

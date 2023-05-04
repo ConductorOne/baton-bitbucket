@@ -210,8 +210,8 @@ func (c *Client) GetWorkspaceProjects(ctx context.Context, workspaceId string, g
 }
 
 // GetProjectRepos lists all repositories that belong under specified project (which belongs under specified workspace).
-func (c *Client) GetProjectRepos(ctx context.Context, workspaceId string, projectId string, getWorkspaceProjectsVars PaginationVars) ([]Repository, string, annotations.Annotations, error) {
-	queryParams := setupPaginationQuery(url.Values{}, getWorkspaceProjectsVars.Limit, getWorkspaceProjectsVars.Page)
+func (c *Client) GetProjectRepos(ctx context.Context, workspaceId string, projectId string, getProjectReposVars PaginationVars) ([]Repository, string, annotations.Annotations, error) {
+	queryParams := setupPaginationQuery(url.Values{}, getProjectReposVars.Limit, getProjectReposVars.Page)
 	encodedWorkspaceId := url.PathEscape(workspaceId)
 
 	// setup project filter query based on specified project id
@@ -237,8 +237,8 @@ func (c *Client) GetProjectRepos(ctx context.Context, workspaceId string, projec
 }
 
 // GetProjectGroupPermissions lists all group permissions that belong under specified project.
-func (c *Client) GetProjectGroupPermissions(ctx context.Context, workspaceId string, projectKey string, getProjectGroupPermissionsVars PaginationVars) ([]GroupPermission, string, annotations.Annotations, error) {
-	queryParams := setupPaginationQuery(url.Values{}, getProjectGroupPermissionsVars.Limit, getProjectGroupPermissionsVars.Page)
+func (c *Client) GetProjectGroupPermissions(ctx context.Context, workspaceId string, projectKey string, getPermissionsVars PaginationVars) ([]GroupPermission, string, annotations.Annotations, error) {
+	queryParams := setupPaginationQuery(url.Values{}, getPermissionsVars.Limit, getPermissionsVars.Page)
 	encodedWorkspaceId := url.PathEscape(workspaceId)
 
 	var projectGroupPermissionsResponse GroupPermissionsResponse
@@ -261,8 +261,8 @@ func (c *Client) GetProjectGroupPermissions(ctx context.Context, workspaceId str
 }
 
 // GetProjectUserPermissions lists all user permissions that belong under specified project.
-func (c *Client) GetProjectUserPermissions(ctx context.Context, workspaceId string, projectKey string, getProjectUserPermissionsVars PaginationVars) ([]UserPermission, string, annotations.Annotations, error) {
-	queryParams := setupPaginationQuery(url.Values{}, getProjectUserPermissionsVars.Limit, getProjectUserPermissionsVars.Page)
+func (c *Client) GetProjectUserPermissions(ctx context.Context, workspaceId string, projectKey string, getPermissionsVars PaginationVars) ([]UserPermission, string, annotations.Annotations, error) {
+	queryParams := setupPaginationQuery(url.Values{}, getPermissionsVars.Limit, getPermissionsVars.Page)
 	encodedWorkspaceId := url.PathEscape(workspaceId)
 
 	var projectUserPermissionsResponse UserPermissionsResponse
@@ -285,8 +285,8 @@ func (c *Client) GetProjectUserPermissions(ctx context.Context, workspaceId stri
 }
 
 // GetRepositoryGroupPermissions lists all group permissions that belong under specified repository.
-func (c *Client) GetRepositoryGroupPermissions(ctx context.Context, workspaceId string, repoId string, getRepoGroupPermissionsVars PaginationVars) ([]GroupPermission, string, annotations.Annotations, error) {
-	queryParams := setupPaginationQuery(url.Values{}, getRepoGroupPermissionsVars.Limit, getRepoGroupPermissionsVars.Page)
+func (c *Client) GetRepositoryGroupPermissions(ctx context.Context, workspaceId string, repoId string, getPermissionsVars PaginationVars) ([]GroupPermission, string, annotations.Annotations, error) {
+	queryParams := setupPaginationQuery(url.Values{}, getPermissionsVars.Limit, getPermissionsVars.Page)
 	encodedWorkspaceId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(repoId)
 
 	var repositoryGroupPermissionsResponse GroupPermissionsResponse
@@ -309,8 +309,8 @@ func (c *Client) GetRepositoryGroupPermissions(ctx context.Context, workspaceId 
 }
 
 // GetRepositoryUserPermissions lists all user permissions that belong under specified repository.
-func (c *Client) GetRepositoryUserPermissions(ctx context.Context, workspaceId string, repoId string, getRepoUserPermissionsVars PaginationVars) ([]UserPermission, string, annotations.Annotations, error) {
-	queryParams := setupPaginationQuery(url.Values{}, getRepoUserPermissionsVars.Limit, getRepoUserPermissionsVars.Page)
+func (c *Client) GetRepositoryUserPermissions(ctx context.Context, workspaceId string, repoId string, getPermissionsVars PaginationVars) ([]UserPermission, string, annotations.Annotations, error) {
+	queryParams := setupPaginationQuery(url.Values{}, getPermissionsVars.Limit, getPermissionsVars.Page)
 	encodedWorkspaceId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(repoId)
 
 	var repositoryUserPermissionsResponse UserPermissionsResponse

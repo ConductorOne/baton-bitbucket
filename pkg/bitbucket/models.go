@@ -42,6 +42,21 @@ type Repository struct {
 	FullName    string `json:"full_name"`
 	Description string `json:"description"`
 }
+type Permission struct {
+	Slug  string `json:"slug"`
+	Name  string `json:"name"`
+	Value string `json:"permission"`
+}
+
+type GroupPermission struct {
+	Permission
+	Group UserGroup `json:"group"`
+}
+
+type UserPermission struct {
+	Permission
+	User User `json:"user"`
+}
 
 type PaginationData struct {
 	Next string `json:"next"`

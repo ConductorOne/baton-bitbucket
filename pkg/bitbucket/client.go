@@ -23,6 +23,14 @@ const (
 	WorkspaceUserGroupsBaseURL = V1BaseURL + "groups/%s"
 	ProjectRepositoriesBaseURL = BaseURL + "repositories/%s"
 	UserBaseURL                = BaseURL + "users/%s"
+
+	ProjectPermissionsBaseURL      = WorkspacesBaseURL + "/%s/projects/%s/permissions-config"
+	ProjectGroupPermissionsBaseURL = ProjectPermissionsBaseURL + "/groups"
+	ProjectUserPermissionsBaseURL  = ProjectPermissionsBaseURL + "/users"
+
+	RepoPermissionsBaseURL      = ProjectRepositoriesBaseURL + "/%s/permissions-config"
+	RepoGroupPermissionsBaseURL = RepoPermissionsBaseURL + "/groups"
+	RepoUserPermissionsBaseURL  = RepoPermissionsBaseURL + "/users"
 )
 
 type Client struct {
@@ -51,6 +59,16 @@ type WorkspaceProjectsResponse struct {
 
 type ProjectRepositoriesResponse struct {
 	Values []Repository `json:"values"`
+	PaginationData
+}
+
+type GroupPermissionsResponse struct {
+	Values []GroupPermission `json:"values"`
+	PaginationData
+}
+
+type UserPermissionsResponse struct {
+	Values []UserPermission `json:"values"`
 	PaginationData
 }
 
@@ -216,6 +234,102 @@ func (c *Client) GetProjectRepos(ctx context.Context, workspaceId string, projec
 	}
 
 	return projectRepositoriesResponse.Values, "", annos, nil
+}
+
+// GetProjectGroupPermissions lists all group permissions that belong under specified project.
+func (c *Client) GetProjectGroupPermissions(ctx context.Context, workspaceId string, projectKey string, getProjectGroupPermissionsVars PaginationVars) ([]GroupPermission, string, annotations.Annotations, error) {
+	queryParams := setupPaginationQuery(url.Values{}, getProjectGroupPermissionsVars.Limit, getProjectGroupPermissionsVars.Page)
+	encodedWorkspaceId := url.PathEscape(workspaceId)
+
+	var projectGroupPermissionsResponse GroupPermissionsResponse
+	annos, err := c.doRequest(
+		ctx,
+		fmt.Sprintf(ProjectGroupPermissionsBaseURL, encodedWorkspaceId, projectKey),
+		&projectGroupPermissionsResponse,
+		queryParams,
+	)
+
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	if projectGroupPermissionsResponse.Next != "" {
+		return projectGroupPermissionsResponse.Values, parsePageFromURL(projectGroupPermissionsResponse.Next), annos, nil
+	}
+
+	return projectGroupPermissionsResponse.Values, "", annos, nil
+}
+
+// GetProjectUserPermissions lists all user permissions that belong under specified project.
+func (c *Client) GetProjectUserPermissions(ctx context.Context, workspaceId string, projectKey string, getProjectUserPermissionsVars PaginationVars) ([]UserPermission, string, annotations.Annotations, error) {
+	queryParams := setupPaginationQuery(url.Values{}, getProjectUserPermissionsVars.Limit, getProjectUserPermissionsVars.Page)
+	encodedWorkspaceId := url.PathEscape(workspaceId)
+
+	var projectUserPermissionsResponse UserPermissionsResponse
+	annos, err := c.doRequest(
+		ctx,
+		fmt.Sprintf(ProjectUserPermissionsBaseURL, encodedWorkspaceId, projectKey),
+		&projectUserPermissionsResponse,
+		queryParams,
+	)
+
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	if projectUserPermissionsResponse.Next != "" {
+		return projectUserPermissionsResponse.Values, parsePageFromURL(projectUserPermissionsResponse.Next), annos, nil
+	}
+
+	return projectUserPermissionsResponse.Values, "", annos, nil
+}
+
+// GetRepositoryGroupPermissions lists all group permissions that belong under specified repository.
+func (c *Client) GetRepositoryGroupPermissions(ctx context.Context, workspaceId string, repoId string, getRepoGroupPermissionsVars PaginationVars) ([]GroupPermission, string, annotations.Annotations, error) {
+	queryParams := setupPaginationQuery(url.Values{}, getRepoGroupPermissionsVars.Limit, getRepoGroupPermissionsVars.Page)
+	encodedWorkspaceId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(repoId)
+
+	var repositoryGroupPermissionsResponse GroupPermissionsResponse
+	annos, err := c.doRequest(
+		ctx,
+		fmt.Sprintf(RepoGroupPermissionsBaseURL, encodedWorkspaceId, encodedRepoId),
+		&repositoryGroupPermissionsResponse,
+		queryParams,
+	)
+
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	if repositoryGroupPermissionsResponse.Next != "" {
+		return repositoryGroupPermissionsResponse.Values, parsePageFromURL(repositoryGroupPermissionsResponse.Next), annos, nil
+	}
+
+	return repositoryGroupPermissionsResponse.Values, "", annos, nil
+}
+
+// GetRepositoryUserPermissions lists all user permissions that belong under specified repository.
+func (c *Client) GetRepositoryUserPermissions(ctx context.Context, workspaceId string, repoId string, getRepoUserPermissionsVars PaginationVars) ([]UserPermission, string, annotations.Annotations, error) {
+	queryParams := setupPaginationQuery(url.Values{}, getRepoUserPermissionsVars.Limit, getRepoUserPermissionsVars.Page)
+	encodedWorkspaceId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(repoId)
+
+	var repositoryUserPermissionsResponse UserPermissionsResponse
+	annos, err := c.doRequest(
+		ctx,
+		fmt.Sprintf(RepoUserPermissionsBaseURL, encodedWorkspaceId, encodedRepoId),
+		&repositoryUserPermissionsResponse,
+		queryParams,
+	)
+
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	if repositoryUserPermissionsResponse.Next != "" {
+		return repositoryUserPermissionsResponse.Values, parsePageFromURL(repositoryUserPermissionsResponse.Next), annos, nil
+	}
+
+	return repositoryUserPermissionsResponse.Values, "", annos, nil
 }
 
 func (c *Client) doRequest(ctx context.Context, url string, resourceResponse interface{}, queryParams url.Values) (annotations.Annotations, error) {

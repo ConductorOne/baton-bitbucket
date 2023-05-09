@@ -19,6 +19,8 @@ var repositoryRoles = []string{roleRead, roleWrite, roleAdmin}
 type repositoryResourceType struct {
 	resourceType *v2.ResourceType
 	client       *bitbucket.Client
+
+	usersGranted map[string][]string
 }
 
 func (r *repositoryResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -106,7 +108,7 @@ func (r *repositoryResourceType) Entitlements(ctx context.Context, resource *v2.
 	// create entitlements for each repository role (read, write, admin)
 	for _, role := range repositoryRoles {
 		permissionOptions := []ent.EntitlementOption{
-			ent.WithGrantableTo(resourceTypeUserGroup, resourceTypeUser),
+			ent.WithGrantableTo(resourceTypeUser),
 			ent.WithDisplayName(fmt.Sprintf("%s Repository %s", resource.DisplayName, role)),
 			ent.WithDescription(fmt.Sprintf("%s access to %s repository in BitBucket", titleCaser.String(role), resource.DisplayName)),
 		}
@@ -167,23 +169,44 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 
 		for _, permission := range permissions {
 			// check if the permission is supported repository role
-			if !containsPermission(permission.Value, repositoryRoles) {
+			if !contains(permission.Value, repositoryRoles) {
 				continue
 			}
 
-			gr, err := userGroupResource(ctx, &permission.Group, resource.ParentResourceId)
+			// get all members in the group
+			members, _, err := r.client.GetUserGroupMembers(
+				ctx,
+				workspaceId,
+				permission.Group.Slug,
+			)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list group members: %w", err)
 			}
 
-			rv = append(
-				rv,
-				grant.NewGrant(
-					resource,
-					permission.Value,
-					gr.Id,
-				),
-			)
+			for _, member := range members {
+				// skip if already granted
+				if contains(member.Id, r.usersGranted[permission.Value]) {
+					continue
+				}
+
+				memberCopy := member
+
+				ur, err := userResource(ctx, &memberCopy, resource.ParentResourceId)
+				if err != nil {
+					return nil, "", nil, err
+				}
+
+				rv = append(
+					rv,
+					grant.NewGrant(
+						resource,
+						permission.Value,
+						ur.Id,
+					),
+				)
+
+				r.usersGranted[permission.Value] = append(r.usersGranted[permission.Value], member.Id)
+			}
 		}
 
 	// create a permission grant for each user in the repository
@@ -208,7 +231,12 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 
 		for _, permission := range permissions {
 			// check if the permission is supported repository role
-			if !containsPermission(permission.Value, repositoryRoles) {
+			if !contains(permission.Value, repositoryRoles) {
+				continue
+			}
+
+			// skip if already granted
+			if contains(permission.User.Id, r.usersGranted[permission.Value]) {
 				continue
 			}
 
@@ -225,6 +253,8 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 					ur.Id,
 				),
 			)
+
+			r.usersGranted[permission.Value] = append(r.usersGranted[permission.Value], permission.User.Id)
 		}
 
 	default:
@@ -243,5 +273,7 @@ func repositoryBuilder(client *bitbucket.Client) *repositoryResourceType {
 	return &repositoryResourceType{
 		resourceType: resourceTypeRepository,
 		client:       client,
+
+		usersGranted: make(map[string][]string),
 	}
 }

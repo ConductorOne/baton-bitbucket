@@ -20,9 +20,11 @@ const (
 	WorkspacesBaseURL          = BaseURL + "workspaces"
 	WorkspaceMembersBaseURL    = WorkspacesBaseURL + "/%s/members"
 	WorkspaceProjectsBaseURL   = WorkspacesBaseURL + "/%s/projects"
-	WorkspaceUserGroupsBaseURL = V1BaseURL + "groups/%s"
 	ProjectRepositoriesBaseURL = BaseURL + "repositories/%s"
 	UserBaseURL                = BaseURL + "users/%s"
+
+	WorkspaceUserGroupsBaseURL = V1BaseURL + "groups/%s"
+	UserGroupMembersBaseURL    = WorkspaceUserGroupsBaseURL + "/%s/members"
 
 	ProjectPermissionsBaseURL      = WorkspacesBaseURL + "/%s/projects/%s/permissions-config"
 	ProjectGroupPermissionsBaseURL = ProjectPermissionsBaseURL + "/groups"
@@ -49,6 +51,7 @@ type WorkspaceMembersResponse struct {
 }
 
 type WorkspaceUserGroupsResponse = []UserGroup
+type UserGroupMembersResponse = []User
 
 type UserResponse = User
 
@@ -164,6 +167,25 @@ func (c *Client) GetWorkspaceUserGroups(ctx context.Context, workspaceId string)
 	}
 
 	return workspaceUserGroupsResponse, annos, nil
+}
+
+// GetUserGroupMembers lists all members that belong in specified user group.
+func (c *Client) GetUserGroupMembers(ctx context.Context, workspaceId string, groupSlug string) ([]User, annotations.Annotations, error) {
+	encodedWorkspaceId := url.PathEscape(workspaceId)
+
+	var userGroupMembersResponse UserGroupMembersResponse
+	annos, err := c.doRequest(
+		ctx,
+		fmt.Sprintf(UserGroupMembersBaseURL, encodedWorkspaceId, groupSlug),
+		&userGroupMembersResponse,
+		nil,
+	)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return userGroupMembersResponse, annos, nil
 }
 
 // GetUser get detail information about specified user.

@@ -38,9 +38,9 @@ func mapUserIds(users []bitbucket.User) []string {
 	return ids
 }
 
-func containsPermission(value string, roles []string) bool {
-	for _, role := range roles {
-		if value == role {
+func contains(payload string, values []string) bool {
+	for _, val := range values {
+		if payload == val {
 			return true
 		}
 	}

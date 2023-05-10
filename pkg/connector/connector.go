@@ -2,6 +2,8 @@ package connector
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 
 	"github.com/ConductorOne/baton-bitbucket/common"
 	"github.com/ConductorOne/baton-bitbucket/pkg/bitbucket"
@@ -73,12 +75,31 @@ func (bb *BitBucket) Validate(ctx context.Context) (annotations.Annotations, err
 
 func New(ctx context.Context, workspaces []string, auth common.AuthOption) (*BitBucket, error) {
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
+	if err != nil {
+		return nil, err
+	}
 
+	auth, err = resolveAuth(auth, httpClient, ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	return &BitBucket{
-		client: bitbucket.NewClient(auth(), httpClient),
+		client: bitbucket.NewClient(auth.Apply(), httpClient),
 	}, nil
+}
+
+func resolveAuth(auth common.AuthOption, httpClient *http.Client, ctx context.Context) (common.AuthOption, error) {
+	if oauth, ok := auth.(common.OAuth2Auth); ok {
+		accessToken, err := bitbucket.Login(httpClient, ctx, oauth.Apply())
+		if err != nil {
+			return nil, fmt.Errorf("bitbucket-connector: failed to login: %w", err)
+		}
+
+		return common.BearerAuth{
+			Token: accessToken,
+		}, nil
+	}
+
+	return auth, nil
 }

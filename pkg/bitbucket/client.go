@@ -18,6 +18,8 @@ const (
 	V1BaseURL = "https://api.bitbucket.org/1.0/"
 	BaseURL   = "https://api.bitbucket.org/2.0/"
 
+	LoginBaseURL = "https://bitbucket.org/site/oauth2/access_token"
+
 	WorkspacesBaseURL          = BaseURL + "workspaces"
 	WorkspaceMembersBaseURL    = WorkspacesBaseURL + "/%s/members"
 	WorkspaceProjectsBaseURL   = WorkspacesBaseURL + "/%s/projects"
@@ -92,6 +94,29 @@ func NewClient(auth string, httpClient *http.Client) *Client {
 		auth:       auth,
 		httpClient: httpClient,
 	}
+}
+
+func Login(client *http.Client, ctx context.Context, idAndSecret string) (string, error) {
+	body := strings.NewReader("grant_type=client_credentials")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, LoginBaseURL, body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", idAndSecret)
+	req.Header.Set("accept", "application/json")
+
+	rawResponse, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+
+	defer rawResponse.Body.Close()
+
+	if rawResponse.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to login: %s", rawResponse.Status)
+	}
+
+	return "", nil
 }
 
 func setupPaginationQuery(query *url.Values, limit int, page string) {

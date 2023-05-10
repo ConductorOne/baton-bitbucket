@@ -39,14 +39,26 @@ func main() {
 
 func constructAuth(cfg *config) (common.AuthOption, error) {
 	if cfg.AccessToken != "" {
-		return common.WithBearerAuth(cfg.AccessToken), nil
+		return common.BearerAuth{
+			Token: cfg.AccessToken,
+		}, nil
 	}
 
 	if cfg.Username != "" {
-		return common.WithBasicAuth(cfg.Username, cfg.Password), nil
+		return common.BasicAuth{
+			Username: cfg.Username,
+			Password: cfg.Password,
+		}, nil
 	}
 
-	return nil, fmt.Errorf("Invalid config")
+	if cfg.ClientId != "" {
+		return common.OAuth2Auth{
+			ClientId:     cfg.ClientId,
+			ClientSecret: cfg.ClientSecret,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("invalid config")
 }
 
 func getConnector(ctx context.Context, cfg *config) (types.ConnectorServer, error) {

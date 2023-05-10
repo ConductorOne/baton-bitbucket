@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"google.golang.org/grpc/codes"
@@ -34,6 +35,12 @@ const (
 	RepoGroupPermissionsBaseURL = RepoPermissionsBaseURL + "/groups"
 	RepoUserPermissionsBaseURL  = RepoPermissionsBaseURL + "/users"
 )
+
+var defaultFilters = []string{
+	"-links",
+	"-*.links",
+	"-*.*.links",
+}
 
 type Client struct {
 	httpClient *http.Client
@@ -87,23 +94,33 @@ func NewClient(auth string, httpClient *http.Client) *Client {
 	}
 }
 
-func setupPaginationQuery(query url.Values, limit int, page string) url.Values {
+func setupPaginationQuery(query *url.Values, limit int, page string) {
 	// add limit
 	if limit != 0 {
-		query.Add("pagelen", strconv.Itoa(limit))
+		query.Set("pagelen", strconv.Itoa(limit))
 	}
 
 	// add page
 	if page != "" {
-		query.Add("page", page)
+		query.Set("page", page)
+	}
+}
+
+func setupQuery(query *url.Values, searchId string, filters ...string) {
+	if searchId != "" {
+		query.Set("q", searchId)
 	}
 
-	return query
+	if len(filters) > 0 {
+		query.Set("fields", strings.Join(filters, ","))
+	}
 }
 
 // GetWorkspaces lists all workspaces current user belongs to.
 func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars PaginationVars) ([]Workspace, string, annotations.Annotations, error) {
-	queryParams := setupPaginationQuery(url.Values{}, getWorkspacesVars.Limit, getWorkspacesVars.Page)
+	queryParams := url.Values{}
+	setupQuery(&queryParams, "", defaultFilters...)
+	setupPaginationQuery(&queryParams, getWorkspacesVars.Limit, getWorkspacesVars.Page)
 
 	var workspaceResponse WorkspacesResponse
 	annos, err := c.doRequest(
@@ -126,8 +143,10 @@ func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars Pagination
 
 // GetWorkspaceMembers lists all users that belong under specified workspace.
 func (c *Client) GetWorkspaceMembers(ctx context.Context, workspaceId string, getWorkspacesVars PaginationVars) ([]User, string, annotations.Annotations, error) {
-	queryParams := setupPaginationQuery(url.Values{}, getWorkspacesVars.Limit, getWorkspacesVars.Page)
 	encodedWorkspaceId := url.PathEscape(workspaceId)
+	queryParams := url.Values{}
+	setupQuery(&queryParams, "", composeFilters(defaultFilters, "-*.workspace")...)
+	setupPaginationQuery(&queryParams, getWorkspacesVars.Limit, getWorkspacesVars.Page)
 
 	var workspaceMembersResponse WorkspaceMembersResponse
 	annos, err := c.doRequest(
@@ -150,7 +169,7 @@ func (c *Client) GetWorkspaceMembers(ctx context.Context, workspaceId string, ge
 	return results, "", annos, nil
 }
 
-// GetWorkspaceUserGroups lists all user groups that belong under specified workspace.
+// GetWorkspaceUserGroups lists all user groups that belong under specified workspace. (This method is supported only for v1 API)
 func (c *Client) GetWorkspaceUserGroups(ctx context.Context, workspaceId string) ([]UserGroup, annotations.Annotations, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
 
@@ -169,7 +188,7 @@ func (c *Client) GetWorkspaceUserGroups(ctx context.Context, workspaceId string)
 	return workspaceUserGroupsResponse, annos, nil
 }
 
-// GetUserGroupMembers lists all members that belong in specified user group.
+// GetUserGroupMembers lists all members that belong in specified user group. (This method is supported only for v1 API)
 func (c *Client) GetUserGroupMembers(ctx context.Context, workspaceId string, groupSlug string) ([]User, annotations.Annotations, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
 
@@ -191,13 +210,15 @@ func (c *Client) GetUserGroupMembers(ctx context.Context, workspaceId string, gr
 // GetUser get detail information about specified user.
 func (c *Client) GetUser(ctx context.Context, userId string) (*User, annotations.Annotations, error) {
 	encodedUserId := url.PathEscape(userId)
+	queryParams := url.Values{}
+	setupQuery(&queryParams, "", defaultFilters...)
 
 	var userResponse UserResponse
 	annos, err := c.doRequest(
 		ctx,
 		fmt.Sprintf(UserBaseURL, encodedUserId),
 		&userResponse,
-		nil,
+		queryParams,
 	)
 
 	if err != nil {
@@ -209,8 +230,10 @@ func (c *Client) GetUser(ctx context.Context, userId string) (*User, annotations
 
 // GetWorkspaceProjects lists all projects that belong under specified workspace.
 func (c *Client) GetWorkspaceProjects(ctx context.Context, workspaceId string, getWorkspaceProjectsVars PaginationVars) ([]Project, string, annotations.Annotations, error) {
-	queryParams := setupPaginationQuery(url.Values{}, getWorkspaceProjectsVars.Limit, getWorkspaceProjectsVars.Page)
 	encodedWorkspaceId := url.PathEscape(workspaceId)
+	queryParams := url.Values{}
+	setupQuery(&queryParams, "", composeFilters(defaultFilters, "-*.workspace", "-*.owner")...)
+	setupPaginationQuery(&queryParams, getWorkspaceProjectsVars.Limit, getWorkspaceProjectsVars.Page)
 
 	var workspaceProjectsResponse WorkspaceProjectsResponse
 	annos, err := c.doRequest(
@@ -233,11 +256,14 @@ func (c *Client) GetWorkspaceProjects(ctx context.Context, workspaceId string, g
 
 // GetProjectRepos lists all repositories that belong under specified project (which belongs under specified workspace).
 func (c *Client) GetProjectRepos(ctx context.Context, workspaceId string, projectId string, getProjectReposVars PaginationVars) ([]Repository, string, annotations.Annotations, error) {
-	queryParams := setupPaginationQuery(url.Values{}, getProjectReposVars.Limit, getProjectReposVars.Page)
 	encodedWorkspaceId := url.PathEscape(workspaceId)
-
-	// setup project filter query based on specified project id
-	queryParams.Set("q", fmt.Sprintf("project.uuid=\"%s\"", projectId))
+	queryParams := url.Values{}
+	setupQuery(
+		&queryParams,
+		fmt.Sprintf("project.uuid=\"%s\"", projectId),
+		composeFilters(defaultFilters, "-*.workspace", "-*.owner")...,
+	)
+	setupPaginationQuery(&queryParams, getProjectReposVars.Limit, getProjectReposVars.Page)
 
 	var projectRepositoriesResponse ProjectRepositoriesResponse
 	annos, err := c.doRequest(
@@ -260,7 +286,9 @@ func (c *Client) GetProjectRepos(ctx context.Context, workspaceId string, projec
 
 // GetProjectGroupPermissions lists all group permissions that belong under specified project.
 func (c *Client) GetProjectGroupPermissions(ctx context.Context, workspaceId string, projectKey string, getPermissionsVars PaginationVars) ([]GroupPermission, string, annotations.Annotations, error) {
-	queryParams := setupPaginationQuery(url.Values{}, getPermissionsVars.Limit, getPermissionsVars.Page)
+	queryParams := url.Values{}
+	setupQuery(&queryParams, "", composeFilters(defaultFilters, "-*.*.workspace", "-*.*.owner")...)
+	setupPaginationQuery(&queryParams, getPermissionsVars.Limit, getPermissionsVars.Page)
 	encodedWorkspaceId := url.PathEscape(workspaceId)
 
 	var projectGroupPermissionsResponse GroupPermissionsResponse
@@ -284,8 +312,10 @@ func (c *Client) GetProjectGroupPermissions(ctx context.Context, workspaceId str
 
 // GetProjectUserPermissions lists all user permissions that belong under specified project.
 func (c *Client) GetProjectUserPermissions(ctx context.Context, workspaceId string, projectKey string, getPermissionsVars PaginationVars) ([]UserPermission, string, annotations.Annotations, error) {
-	queryParams := setupPaginationQuery(url.Values{}, getPermissionsVars.Limit, getPermissionsVars.Page)
 	encodedWorkspaceId := url.PathEscape(workspaceId)
+	queryParams := url.Values{}
+	setupQuery(&queryParams, "", defaultFilters...)
+	setupPaginationQuery(&queryParams, getPermissionsVars.Limit, getPermissionsVars.Page)
 
 	var projectUserPermissionsResponse UserPermissionsResponse
 	annos, err := c.doRequest(
@@ -308,8 +338,10 @@ func (c *Client) GetProjectUserPermissions(ctx context.Context, workspaceId stri
 
 // GetRepositoryGroupPermissions lists all group permissions that belong under specified repository.
 func (c *Client) GetRepositoryGroupPermissions(ctx context.Context, workspaceId string, repoId string, getPermissionsVars PaginationVars) ([]GroupPermission, string, annotations.Annotations, error) {
-	queryParams := setupPaginationQuery(url.Values{}, getPermissionsVars.Limit, getPermissionsVars.Page)
 	encodedWorkspaceId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(repoId)
+	queryParams := url.Values{}
+	setupQuery(&queryParams, "", composeFilters(defaultFilters, "-*.*.workspace", "-*.*.owner")...)
+	setupPaginationQuery(&queryParams, getPermissionsVars.Limit, getPermissionsVars.Page)
 
 	var repositoryGroupPermissionsResponse GroupPermissionsResponse
 	annos, err := c.doRequest(
@@ -332,8 +364,10 @@ func (c *Client) GetRepositoryGroupPermissions(ctx context.Context, workspaceId 
 
 // GetRepositoryUserPermissions lists all user permissions that belong under specified repository.
 func (c *Client) GetRepositoryUserPermissions(ctx context.Context, workspaceId string, repoId string, getPermissionsVars PaginationVars) ([]UserPermission, string, annotations.Annotations, error) {
-	queryParams := setupPaginationQuery(url.Values{}, getPermissionsVars.Limit, getPermissionsVars.Page)
 	encodedWorkspaceId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(repoId)
+	queryParams := url.Values{}
+	setupQuery(&queryParams, "", defaultFilters...)
+	setupPaginationQuery(&queryParams, getPermissionsVars.Limit, getPermissionsVars.Page)
 
 	var repositoryUserPermissionsResponse UserPermissionsResponse
 	annos, err := c.doRequest(
@@ -410,4 +444,8 @@ func parsePageFromURL(urlPayload string) string {
 	}
 
 	return u.Query().Get("page")
+}
+
+func composeFilters(filters []string, newFilters ...string) []string {
+	return append(filters, newFilters...)
 }

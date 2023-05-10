@@ -11,8 +11,7 @@ type Workspace struct {
 }
 
 type WorkspaceMember struct {
-	User      User      `json:"user"`
-	Workspace Workspace `json:"workspace"`
+	User User `json:"user"`
 }
 
 type User struct {

@@ -194,7 +194,7 @@ func (c *Client) GetWorkspaceMembers(ctx context.Context, workspaceId string, ge
 	return results, "", annos, nil
 }
 
-// GetWorkspaceUserGroups lists all user groups that belong under specified workspace. (This method is supported only for v1 API)
+// GetWorkspaceUserGroups lists all user groups that belong under specified workspace (This method is supported only for v1 API).
 func (c *Client) GetWorkspaceUserGroups(ctx context.Context, workspaceId string) ([]UserGroup, annotations.Annotations, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
 
@@ -213,7 +213,7 @@ func (c *Client) GetWorkspaceUserGroups(ctx context.Context, workspaceId string)
 	return workspaceUserGroupsResponse, annos, nil
 }
 
-// GetUserGroupMembers lists all members that belong in specified user group. (This method is supported only for v1 API)
+// GetUserGroupMembers lists all members that belong in specified user group (This method is supported only for v1 API).
 func (c *Client) GetUserGroupMembers(ctx context.Context, workspaceId string, groupSlug string) ([]User, annotations.Annotations, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
 

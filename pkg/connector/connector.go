@@ -47,12 +47,14 @@ var (
 )
 
 type BitBucket struct {
-	client *bitbucket.Client
+	client     *bitbucket.Client
+	workspaces []string
+	scope      Scope
 }
 
 func (bb *BitBucket) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
-		workspaceBuilder(bb.client),
+		workspaceBuilder(bb.client, bb.scope, bb.workspaces),
 		projectBuilder(bb.client),
 		userBuilder(bb.client),
 		userGroupBuilder(bb.client),
@@ -69,8 +71,27 @@ func (bb *BitBucket) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error
 
 // Validate hits the BitBucket API to validate that the configured credentials are valid and compatible.
 func (bb *BitBucket) Validate(ctx context.Context) (annotations.Annotations, error) {
-	// TODO: add validation
-	return nil, nil
+	// get the scope of used credentials
+	user, annos, err := bb.client.GetCurrentUser(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("bitbucket-connector: failed to get current user: %w", err)
+	}
+
+	// check the type of user
+	switch user.Type {
+	case "user":
+		bb.scope = &UserScoped{
+			Username: user.Id,
+		}
+	case "team":
+		bb.scope = &WorkspaceScoped{
+			Workspace: user.Id,
+		}
+	default:
+		return annos, fmt.Errorf("bitbucket-connector: unsupported user type: %s", user.Type)
+	}
+
+	return annos, nil
 }
 
 func New(ctx context.Context, workspaces []string, auth common.AuthOption) (*BitBucket, error) {
@@ -97,7 +118,7 @@ func resolveAuth(auth common.AuthOption, httpClient *http.Client, ctx context.Co
 		}
 
 		return common.BearerAuth{
-			Token: accessToken,
+			Token: *accessToken,
 		}, nil
 	}
 

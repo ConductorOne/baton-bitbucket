@@ -36,7 +36,7 @@ func userResource(ctx context.Context, user *bitbucket.User, parentResourceID *v
 	profile := map[string]interface{}{
 		"first_name": firstName,
 		"last_name":  lastName,
-		"login":      user.Nickname,
+		"login":      user.Username,
 		"user_id":    user.Id,
 	}
 

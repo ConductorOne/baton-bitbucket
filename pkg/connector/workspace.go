@@ -18,6 +18,8 @@ const memberEntitlement = "member"
 type workspaceResourceType struct {
 	resourceType *v2.ResourceType
 	client       *bitbucket.Client
+	scope        Scope
+	workspaces   []string
 }
 
 func (w *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -45,41 +47,55 @@ func workspaceResource(ctx context.Context, workspace *bitbucket.Workspace) (*v2
 }
 
 func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, token *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	// parse the token
-	bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id})
-	if err != nil {
-		return nil, "", nil, err
-	}
-
-	workspaces, nextToken, annotations, err := w.client.GetWorkspaces(
-		ctx,
-		bitbucket.PaginationVars{
-			Limit: ResourcesPageSize,
-			Page:  bag.PageToken(),
-		},
-	)
-	if err != nil {
-		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list workspace: %w", err)
-	}
-
-	pageToken, err := bag.NextToken(nextToken)
-	if err != nil {
-		return nil, "", nil, err
-	}
-
-	var rv []*v2.Resource
-	for _, workspace := range workspaces {
-		workspaceCopy := workspace
-
-		wr, err := workspaceResource(ctx, &workspaceCopy)
+	if scopeStartsWith(w.scope.String(), "user") {
+		bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id})
 		if err != nil {
 			return nil, "", nil, err
 		}
 
-		rv = append(rv, wr)
+		workspaces, nextToken, annotations, err := w.client.GetWorkspaces(
+			ctx,
+			bitbucket.PaginationVars{
+				Limit: ResourcesPageSize,
+				Page:  bag.PageToken(),
+			},
+		)
+		if err != nil {
+			return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list workspace: %w", err)
+		}
+
+		pageToken, err := bag.NextToken(nextToken)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		var rv []*v2.Resource
+		for _, workspace := range workspaces {
+			workspaceCopy := workspace
+
+			wr, err := workspaceResource(ctx, &workspaceCopy)
+			if err != nil {
+				return nil, "", nil, err
+			}
+
+			rv = append(rv, wr)
+		}
+
+		return rv, pageToken, annotations, nil
 	}
 
-	return rv, pageToken, annotations, nil
+	// If the scope is a workspace/project/repo, we only want to return that one available workspace.
+	workspace, annos, err := w.client.GetWorkspace(ctx, w.scope.WorkspaceId())
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to get workspace: %w", err)
+	}
+
+	wr, err := workspaceResource(ctx, workspace)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	return []*v2.Resource{wr}, "", annos, nil
 }
 
 func (w *workspaceResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
@@ -143,9 +159,11 @@ func (w *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resourc
 	return rv, pageToken, annotations, nil
 }
 
-func workspaceBuilder(client *bitbucket.Client) *workspaceResourceType {
+func workspaceBuilder(client *bitbucket.Client, scope Scope, workspaces []string) *workspaceResourceType {
 	return &workspaceResourceType{
 		resourceType: resourceTypeWorkspace,
 		client:       client,
+		workspaces:   workspaces,
+		scope:        scope,
 	}
 }

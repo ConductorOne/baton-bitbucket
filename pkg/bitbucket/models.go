@@ -16,8 +16,9 @@ type WorkspaceMember struct {
 
 type User struct {
 	BaseResource
+	Type     string `json:"type"`
 	Name     string `json:"display_name"`
-	Nickname string `json:"nickname"`
+	Username string `json:"username"`
 }
 
 type UserGroup struct {

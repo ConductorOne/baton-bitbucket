@@ -1,6 +1,7 @@
 package bitbucket
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -21,10 +22,12 @@ const (
 	LoginBaseURL = "https://bitbucket.org/site/oauth2/access_token"
 
 	WorkspacesBaseURL          = BaseURL + "workspaces"
+	WorkspaceBaseURL           = WorkspacesBaseURL + "/%s"
 	WorkspaceMembersBaseURL    = WorkspacesBaseURL + "/%s/members"
 	WorkspaceProjectsBaseURL   = WorkspacesBaseURL + "/%s/projects"
 	ProjectRepositoriesBaseURL = BaseURL + "repositories/%s"
 	UserBaseURL                = BaseURL + "users/%s"
+	CurrentUserBaseURL         = BaseURL + "user"
 
 	WorkspaceUserGroupsBaseURL = V1BaseURL + "groups/%s"
 	UserGroupMembersBaseURL    = WorkspaceUserGroupsBaseURL + "/%s/members"
@@ -49,10 +52,16 @@ type Client struct {
 	auth       string
 }
 
+type LoginResponse struct {
+	AccessToken string `json:"access_token"`
+}
+
 type WorkspacesResponse struct {
 	Values []Workspace `json:"values"`
 	PaginationData
 }
+
+type WorkspaceResponse = Workspace
 
 type WorkspaceMembersResponse struct {
 	Values []WorkspaceMember `json:"values"`
@@ -96,29 +105,6 @@ func NewClient(auth string, httpClient *http.Client) *Client {
 	}
 }
 
-func Login(client *http.Client, ctx context.Context, idAndSecret string) (string, error) {
-	body := strings.NewReader("grant_type=client_credentials")
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, LoginBaseURL, body)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Authorization", idAndSecret)
-	req.Header.Set("accept", "application/json")
-
-	rawResponse, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-
-	defer rawResponse.Body.Close()
-
-	if rawResponse.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to login: %s", rawResponse.Status)
-	}
-
-	return "", nil
-}
-
 func setupPaginationQuery(query *url.Values, limit int, page string) {
 	// add limit
 	if limit != 0 {
@@ -147,11 +133,11 @@ func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars Pagination
 	setupQuery(&queryParams, "", defaultFilters...)
 	setupPaginationQuery(&queryParams, getWorkspacesVars.Limit, getWorkspacesVars.Page)
 
-	var workspaceResponse WorkspacesResponse
+	var workspacesResponse WorkspacesResponse
 	annos, err := c.doRequest(
 		ctx,
 		WorkspacesBaseURL,
-		&workspaceResponse,
+		&workspacesResponse,
 		queryParams,
 	)
 
@@ -159,11 +145,32 @@ func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars Pagination
 		return nil, "", nil, err
 	}
 
-	if workspaceResponse.Next != "" {
-		return workspaceResponse.Values, parsePageFromURL(workspaceResponse.Next), annos, nil
+	if workspacesResponse.Next != "" {
+		return workspacesResponse.Values, parsePageFromURL(workspacesResponse.Next), annos, nil
 	}
 
-	return workspaceResponse.Values, "", annos, nil
+	return workspacesResponse.Values, "", annos, nil
+}
+
+// GetWorkspace get specific workspace based on provided id.
+func (c *Client) GetWorkspace(ctx context.Context, workspaceId string) (*Workspace, annotations.Annotations, error) {
+	encodedWorkspaceId := url.PathEscape(workspaceId)
+	queryParams := url.Values{}
+	setupQuery(&queryParams, "", defaultFilters...)
+
+	var workspaceResponse WorkspaceResponse
+	annos, err := c.doRequest(
+		ctx,
+		fmt.Sprintf(WorkspaceBaseURL, encodedWorkspaceId),
+		&workspaceResponse,
+		queryParams,
+	)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &workspaceResponse, annos, nil
 }
 
 // GetWorkspaceMembers lists all users that belong under specified workspace.
@@ -230,6 +237,26 @@ func (c *Client) GetUserGroupMembers(ctx context.Context, workspaceId string, gr
 	}
 
 	return userGroupMembersResponse, annos, nil
+}
+
+// GetCurrentUser get information about currently logged in user or team.
+func (c *Client) GetCurrentUser(ctx context.Context) (*User, annotations.Annotations, error) {
+	queryParams := url.Values{}
+	setupQuery(&queryParams, "", defaultFilters...)
+
+	var userResponse UserResponse
+	annos, err := c.doRequest(
+		ctx,
+		CurrentUserBaseURL,
+		&userResponse,
+		queryParams,
+	)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &userResponse, annos, nil
 }
 
 // GetUser get detail information about specified user.
@@ -423,7 +450,7 @@ func (c *Client) doRequest(ctx context.Context, url string, resourceResponse int
 		req.URL.RawQuery = queryParams.Encode()
 	}
 
-	req.Header.Set("Authorization", fmt.Sprint(c.auth))
+	req.Header.Set("Authorization", c.auth)
 	req.Header.Set("accept", "application/json")
 
 	rawResponse, err := c.httpClient.Do(req)
@@ -446,6 +473,37 @@ func (c *Client) doRequest(ctx context.Context, url string, resourceResponse int
 	// TODO: add rate limits if possible
 
 	return annos, nil
+}
+
+// Login exchanges the client id and secret for an access token with supported Client Credentials Grant.
+func Login(client *http.Client, ctx context.Context, idAndSecret string) (*string, error) {
+	var loginResponse LoginResponse
+
+	body := bytes.NewBufferString("grant_type=client_credentials")
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, LoginBaseURL, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Authorization", idAndSecret)
+
+	rawResponse, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rawResponse.Body.Close()
+
+	if rawResponse.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to login: %s", rawResponse.Status)
+	}
+
+	if err := json.NewDecoder(rawResponse.Body).Decode(&loginResponse); err != nil {
+		return nil, err
+	}
+
+	return &loginResponse.AccessToken, nil
 }
 
 func mapUsers(members []WorkspaceMember) []User {

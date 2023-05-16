@@ -40,5 +40,5 @@ func cmdFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().String("password", "", "Application password used to connect to the BitBucket API. ($BATON_PASSWORD)")
 	cmd.PersistentFlags().String("consumer_key", "", "OAuth consumer key used to connect to the BitBucket API via oauth. ($BATON_CONSUMER_ID)")
 	cmd.PersistentFlags().String("consumer_secret", "", "The consumer secret used to connect to the BitBucket API via oauth. ($BATON_CONSUMER_SECRET)")
-	cmd.PersistentFlags().StringSlice("workspaces", []string{}, "Limit syncing to specific workspaces. ($BATON_WORKSPACES)")
+	cmd.PersistentFlags().StringSlice("workspaces", []string{}, "Limit syncing to specific workspaces by specifying workspace slugs. ($BATON_WORKSPACES)")
 }

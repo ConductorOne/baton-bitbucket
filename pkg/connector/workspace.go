@@ -18,7 +18,7 @@ const memberEntitlement = "member"
 type workspaceResourceType struct {
 	resourceType *v2.ResourceType
 	client       *bitbucket.Client
-	workspaces   []string
+	workspaces   map[string]struct{}
 }
 
 func (w *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -46,6 +46,8 @@ func workspaceResource(ctx context.Context, workspace *bitbucket.Workspace) (*v2
 }
 
 func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, token *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+	var rv []*v2.Resource
+
 	if w.client.IsUserScoped() {
 		bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id})
 		if err != nil {
@@ -68,8 +70,12 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, toke
 			return nil, "", nil, err
 		}
 
-		var rv []*v2.Resource
 		for _, workspace := range workspaces {
+			// Skip workspaces that are not in the list of allowed workspaces.
+			if _, ok := w.workspaces[workspace.Slug]; !ok && len(w.workspaces) > 0 {
+				continue
+			}
+
 			workspaceCopy := workspace
 
 			wr, err := workspaceResource(ctx, &workspaceCopy)
@@ -94,12 +100,20 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, toke
 		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to get workspace: %w", err)
 	}
 
+	// Return empty list if the workspace is not in the list of allowed workspaces.
+	if _, ok := w.workspaces[workspace.Slug]; !ok && len(w.workspaces) > 0 {
+		return rv, "", annos, nil
+	}
+
 	wr, err := workspaceResource(ctx, workspace)
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	return []*v2.Resource{wr}, "", annos, nil
+	rv = append(rv, wr)
+
+	return rv, "", annos, nil
+
 }
 
 func (w *workspaceResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
@@ -164,9 +178,15 @@ func (w *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resourc
 }
 
 func workspaceBuilder(client *bitbucket.Client, workspaces []string) *workspaceResourceType {
+	workspaceMap := make(map[string]struct{}, len(workspaces))
+
+	for _, workspaceSlug := range workspaces {
+		workspaceMap[workspaceSlug] = struct{}{}
+	}
+
 	return &workspaceResourceType{
 		resourceType: resourceTypeWorkspace,
 		client:       client,
-		workspaces:   workspaces,
+		workspaces:   workspaceMap,
 	}
 }

@@ -101,7 +101,8 @@ func New(ctx context.Context, workspaces []string, auth common.AuthOption) (*Bit
 	}
 
 	return &BitBucket{
-		client: bitbucket.NewClient(auth.Apply(), httpClient),
+		client:     bitbucket.NewClient(auth.Apply(), httpClient),
+		workspaces: workspaces,
 	}, nil
 }
 

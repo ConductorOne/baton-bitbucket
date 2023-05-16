@@ -49,12 +49,11 @@ var (
 type BitBucket struct {
 	client     *bitbucket.Client
 	workspaces []string
-	scope      Scope
 }
 
 func (bb *BitBucket) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
-		workspaceBuilder(bb.client, bb.scope, bb.workspaces),
+		workspaceBuilder(bb.client, bb.workspaces),
 		projectBuilder(bb.client),
 		userBuilder(bb.client),
 		userGroupBuilder(bb.client),
@@ -80,13 +79,9 @@ func (bb *BitBucket) Validate(ctx context.Context) (annotations.Annotations, err
 	// check the type of user
 	switch user.Type {
 	case "user":
-		bb.scope = &UserScoped{
-			Username: user.Id,
-		}
+		bb.client.SetupUserScope(user.Id)
 	case "team":
-		bb.scope = &WorkspaceScoped{
-			Workspace: user.Id,
-		}
+		bb.client.SetupWorkspaceScope(user.Id)
 	default:
 		return annos, fmt.Errorf("bitbucket-connector: unsupported user type: %s", user.Type)
 	}

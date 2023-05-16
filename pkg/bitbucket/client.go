@@ -50,6 +50,7 @@ var defaultFilters = []string{
 type Client struct {
 	httpClient *http.Client
 	auth       string
+	scope      Scope
 }
 
 type LoginResponse struct {
@@ -103,6 +104,36 @@ func NewClient(auth string, httpClient *http.Client) *Client {
 		auth:       auth,
 		httpClient: httpClient,
 	}
+}
+
+func (c *Client) SetupUserScope(userId string) {
+	c.scope = &UserScoped{
+		Username: userId,
+	}
+}
+
+func (c *Client) SetupWorkspaceScope(workspaceId string) {
+	c.scope = &WorkspaceScoped{
+		Workspace: workspaceId,
+	}
+}
+
+func (c *Client) IsUserScoped() bool {
+	_, ok := c.scope.(*UserScoped)
+	return ok
+}
+
+func (c *Client) IsWorkspaceScoped() bool {
+	_, ok := c.scope.(*WorkspaceScoped)
+	return ok
+}
+
+func (c *Client) WorkspaceId() (string, error) {
+	if c.IsWorkspaceScoped() {
+		return c.scope.(*WorkspaceScoped).Workspace, nil
+	}
+
+	return "", status.Error(codes.FailedPrecondition, "client is not workspace scoped")
 }
 
 func setupPaginationQuery(query *url.Values, limit int, page string) {

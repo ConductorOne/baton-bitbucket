@@ -18,7 +18,6 @@ const memberEntitlement = "member"
 type workspaceResourceType struct {
 	resourceType *v2.ResourceType
 	client       *bitbucket.Client
-	scope        Scope
 	workspaces   []string
 }
 
@@ -47,7 +46,7 @@ func workspaceResource(ctx context.Context, workspace *bitbucket.Workspace) (*v2
 }
 
 func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, token *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	if scopeStartsWith(w.scope.String(), "user") {
+	if w.client.IsUserScoped() {
 		bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id})
 		if err != nil {
 			return nil, "", nil, err
@@ -84,8 +83,13 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, toke
 		return rv, pageToken, annotations, nil
 	}
 
+	workspaceId, err := w.client.WorkspaceId()
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to get workspace id: %w", err)
+	}
+
 	// If the scope is a workspace/project/repo, we only want to return that one available workspace.
-	workspace, annos, err := w.client.GetWorkspace(ctx, w.scope.WorkspaceId())
+	workspace, annos, err := w.client.GetWorkspace(ctx, workspaceId)
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to get workspace: %w", err)
 	}
@@ -159,11 +163,10 @@ func (w *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resourc
 	return rv, pageToken, annotations, nil
 }
 
-func workspaceBuilder(client *bitbucket.Client, scope Scope, workspaces []string) *workspaceResourceType {
+func workspaceBuilder(client *bitbucket.Client, workspaces []string) *workspaceResourceType {
 	return &workspaceResourceType{
 		resourceType: resourceTypeWorkspace,
 		client:       client,
 		workspaces:   workspaces,
-		scope:        scope,
 	}
 }

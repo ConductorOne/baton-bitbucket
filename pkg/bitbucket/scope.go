@@ -1,4 +1,4 @@
-package connector
+package bitbucket
 
 import "fmt"
 
@@ -56,18 +56,4 @@ func (r *RepositoryScoped) String() string {
 
 func (r *RepositoryScoped) WorkspaceId() string {
 	return r.Workspace
-}
-
-func scopeStartsWith(payload string, search string) bool {
-	if len(payload) < len(search) {
-		return false
-	}
-
-	for i := 0; i < len(search); i++ {
-		if search[i] != payload[i] {
-			return false
-		}
-	}
-
-	return true
 }

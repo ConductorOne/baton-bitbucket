@@ -131,9 +131,32 @@ func (c *Client) IsWorkspaceScoped() bool {
 func (c *Client) WorkspaceId() (string, error) {
 	if c.IsWorkspaceScoped() {
 		return c.scope.(*WorkspaceScoped).Workspace, nil
+	} else {
+		return "", status.Error(codes.InvalidArgument, "client is not workspace scoped")
+	}
+}
+
+func (c *Client) WorkspaceIds(ctx context.Context) ([]string, error) {
+	workspaceIds := make([]string, 0)
+
+	if c.IsUserScoped() {
+		workspaces, err := c.GetAllWorkspaces(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, workspace := range workspaces {
+			workspaceIds = append(workspaceIds, workspace.Id)
+		}
+
+		if len(workspaceIds) == 0 {
+			return nil, status.Error(codes.NotFound, "no workspaces found")
+		}
+	} else {
+		return nil, status.Error(codes.InvalidArgument, "client is not user scoped")
 	}
 
-	return "", status.Error(codes.FailedPrecondition, "client is not workspace scoped")
+	return workspaceIds, nil
 }
 
 func setupPaginationQuery(query *url.Values, limit int, page string) {
@@ -181,6 +204,33 @@ func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars Pagination
 	}
 
 	return workspacesResponse.Values, "", annos, nil
+}
+
+// GetAllWorkspaces lists all workspaces looping through all pages.
+func (c *Client) GetAllWorkspaces(ctx context.Context) ([]Workspace, error) {
+	var allWorkspaces []Workspace
+	var next string
+
+	for {
+		pagination := PaginationVars{
+			Limit: 50,
+			Page:  next,
+		}
+
+		workspaces, nextPage, _, err := c.GetWorkspaces(ctx, pagination)
+		if err != nil {
+			return nil, err
+		}
+
+		allWorkspaces = append(allWorkspaces, workspaces...)
+		next = nextPage
+
+		if next == "" {
+			break
+		}
+	}
+
+	return allWorkspaces, nil
 }
 
 // GetWorkspace get specific workspace based on provided id.
@@ -337,6 +387,33 @@ func (c *Client) GetWorkspaceProjects(ctx context.Context, workspaceId string, g
 	return workspaceProjectsResponse.Values, "", annos, nil
 }
 
+// GetAllWorkspaceProjects lists all projects looping through all pages.
+func (c *Client) GetAllWorkspaceProjects(ctx context.Context, workspaceId string) ([]Project, error) {
+	var allProjects []Project
+	var next string
+
+	for {
+		pagination := PaginationVars{
+			Limit: 50,
+			Page:  next,
+		}
+
+		projects, nextPage, _, err := c.GetWorkspaceProjects(ctx, workspaceId, pagination)
+		if err != nil {
+			return nil, err
+		}
+
+		allProjects = append(allProjects, projects...)
+		next = nextPage
+
+		if next == "" {
+			break
+		}
+	}
+
+	return allProjects, nil
+}
+
 // GetProjectRepos lists all repositories that belong under specified project (which belongs under specified workspace).
 func (c *Client) GetProjectRepos(ctx context.Context, workspaceId string, projectId string, getProjectReposVars PaginationVars) ([]Repository, string, annotations.Annotations, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
@@ -365,6 +442,33 @@ func (c *Client) GetProjectRepos(ctx context.Context, workspaceId string, projec
 	}
 
 	return projectRepositoriesResponse.Values, "", annos, nil
+}
+
+// GetAllProjectRepos lists all repositories looping through all pages.
+func (c *Client) GetAllProjectRepos(ctx context.Context, workspaceId string, projectId string) ([]Repository, error) {
+	var allRepos []Repository
+	var next string
+
+	for {
+		pagination := PaginationVars{
+			Limit: 50,
+			Page:  next,
+		}
+
+		repos, nextPage, _, err := c.GetProjectRepos(ctx, workspaceId, projectId, pagination)
+		if err != nil {
+			return nil, err
+		}
+
+		allRepos = append(allRepos, repos...)
+		next = nextPage
+
+		if next == "" {
+			break
+		}
+	}
+
+	return allRepos, nil
 }
 
 // GetProjectGroupPermissions lists all group permissions that belong under specified project.

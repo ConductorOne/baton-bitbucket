@@ -113,7 +113,6 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, toke
 	rv = append(rv, wr)
 
 	return rv, "", annos, nil
-
 }
 
 func (w *workspaceResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {

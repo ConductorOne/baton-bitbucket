@@ -25,7 +25,7 @@ func (w *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType
 	return w.resourceType
 }
 
-// Create a new connector resource for an BitBucket workspace.
+// Create a new connector resource for an Bitbucket workspace.
 func workspaceResource(ctx context.Context, workspace *bitbucket.Workspace) (*v2.Resource, error) {
 	resource, err := rs.NewResource(
 		workspace.Slug,
@@ -121,7 +121,7 @@ func (w *workspaceResourceType) Entitlements(ctx context.Context, resource *v2.R
 	assignmentOptions := []ent.EntitlementOption{
 		ent.WithGrantableTo(resourceTypeUser),
 		ent.WithDisplayName(fmt.Sprintf("%s Workspace %s", resource.DisplayName, titleCaser.String(memberEntitlement))),
-		ent.WithDescription(fmt.Sprintf("Workspace %s role in BitBucket", resource.DisplayName)),
+		ent.WithDescription(fmt.Sprintf("Workspace %s role in Bitbucket", resource.DisplayName)),
 	}
 
 	// create the membership entitlement

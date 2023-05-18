@@ -27,7 +27,7 @@ func (r *repositoryResourceType) ResourceType(_ context.Context) *v2.ResourceTyp
 	return r.resourceType
 }
 
-// Create a new connector resource for an BitBucket Repository.
+// Create a new connector resource for an Bitbucket Repository.
 func repositoryResource(ctx context.Context, repository *bitbucket.Repository, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
 	profile := map[string]interface{}{
 		"repository_id":        repository.Id,
@@ -110,7 +110,7 @@ func (r *repositoryResourceType) Entitlements(ctx context.Context, resource *v2.
 		permissionOptions := []ent.EntitlementOption{
 			ent.WithGrantableTo(resourceTypeUser),
 			ent.WithDisplayName(fmt.Sprintf("%s Repository %s", resource.DisplayName, role)),
-			ent.WithDescription(fmt.Sprintf("%s access to %s repository in BitBucket", titleCaser.String(role), resource.DisplayName)),
+			ent.WithDescription(fmt.Sprintf("%s access to %s repository in Bitbucket", titleCaser.String(role), resource.DisplayName)),
 		}
 
 		rv = append(rv, ent.NewPermissionEntitlement(

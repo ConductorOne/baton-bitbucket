@@ -23,7 +23,7 @@ func (ug *userGroupResourceType) ResourceType(_ context.Context) *v2.ResourceTyp
 	return ug.resourceType
 }
 
-// Create a new connector resource for an BitBucket UserGroup.
+// Create a new connector resource for an Bitbucket UserGroup.
 func userGroupResource(ctx context.Context, userGroup *bitbucket.UserGroup, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
 	userIdsTotal := len(userGroup.Members)
 	profile := map[string]interface{}{
@@ -83,7 +83,7 @@ func (ug *userGroupResourceType) Entitlements(ctx context.Context, resource *v2.
 	assignmentOptions := []ent.EntitlementOption{
 		ent.WithGrantableTo(resourceTypeUser),
 		ent.WithDisplayName(fmt.Sprintf("%s UserGroup %s", resource.DisplayName, memberEntitlement)),
-		ent.WithDescription(fmt.Sprintf("Access to %s userGroup in BitBucket", resource.DisplayName)),
+		ent.WithDescription(fmt.Sprintf("Access to %s userGroup in Bitbucket", resource.DisplayName)),
 	}
 
 	// create membership entitlement

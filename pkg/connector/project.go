@@ -35,7 +35,7 @@ func (p *projectResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return p.resourceType
 }
 
-// Create a new connector resource for an BitBucket Project.
+// Create a new connector resource for an Bitbucket Project.
 func projectResource(ctx context.Context, project *bitbucket.Project, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
 	profile := map[string]interface{}{
 		"project_id":   project.Id,
@@ -113,7 +113,7 @@ func (p *projectResourceType) Entitlements(ctx context.Context, resource *v2.Res
 	assignmentOptions := []ent.EntitlementOption{
 		ent.WithGrantableTo(resourceTypeRepository),
 		ent.WithDisplayName(fmt.Sprintf("%s Project %s", resource.DisplayName, repoEntitlement)),
-		ent.WithDescription(fmt.Sprintf("Access to %s project in BitBucket", resource.DisplayName)),
+		ent.WithDescription(fmt.Sprintf("Access to %s project in Bitbucket", resource.DisplayName)),
 	}
 
 	// create membership entitlement
@@ -128,7 +128,7 @@ func (p *projectResourceType) Entitlements(ctx context.Context, resource *v2.Res
 		permissionOptions := []ent.EntitlementOption{
 			ent.WithGrantableTo(resourceTypeUser),
 			ent.WithDisplayName(fmt.Sprintf("%s Project %s", resource.DisplayName, permission)),
-			ent.WithDescription(fmt.Sprintf("%s access to %s project in BitBucket", titleCaser.String(permission), resource.DisplayName)),
+			ent.WithDescription(fmt.Sprintf("%s access to %s project in Bitbucket", titleCaser.String(permission), resource.DisplayName)),
 		}
 
 		rv = append(rv, ent.NewPermissionEntitlement(

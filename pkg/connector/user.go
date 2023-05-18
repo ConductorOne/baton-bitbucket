@@ -21,7 +21,7 @@ func (u *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return u.resourceType
 }
 
-// Create a new connector resource for an BitBucket user.
+// Create a new connector resource for an Bitbucket user.
 func userResource(ctx context.Context, user *bitbucket.User, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
 	names := strings.SplitN(user.Name, " ", 2)
 	var firstName, lastName string
@@ -43,7 +43,7 @@ func userResource(ctx context.Context, user *bitbucket.User, parentResourceID *v
 	userTraitOptions := []rs.UserTraitOption{
 		rs.WithUserProfile(profile),
 		rs.WithStatus(v2.UserTrait_Status_STATUS_UNSPECIFIED),
-		// TODO: research retrieving email from BitBucket
+		// TODO: research retrieving email from Bitbucket
 		// rs.WithEmail(user.Email, true),
 	}
 

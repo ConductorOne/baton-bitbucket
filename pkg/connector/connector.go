@@ -46,12 +46,12 @@ var (
 	}
 )
 
-type BitBucket struct {
+type Bitbucket struct {
 	client     *bitbucket.Client
 	workspaces []string
 }
 
-func (bb *BitBucket) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
+func (bb *Bitbucket) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
 		workspaceBuilder(bb.client, bb.workspaces),
 		projectBuilder(bb.client),
@@ -62,14 +62,14 @@ func (bb *BitBucket) ResourceSyncers(ctx context.Context) []connectorbuilder.Res
 }
 
 // Metadata returns metadata about the connector.
-func (bb *BitBucket) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
+func (bb *Bitbucket) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
 	return &v2.ConnectorMetadata{
-		DisplayName: "BitBucket",
+		DisplayName: "Bitbucket",
 	}, nil
 }
 
-// Validate hits the BitBucket API to validate that the configured credentials are valid and compatible.
-func (bb *BitBucket) Validate(ctx context.Context) (annotations.Annotations, error) {
+// Validate hits the Bitbucket API to validate that the configured credentials are valid and compatible.
+func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, error) {
 	// get the scope of used credentials
 	user, annos, err := bb.client.GetCurrentUser(ctx)
 	if err != nil {
@@ -121,7 +121,7 @@ func (bb *BitBucket) Validate(ctx context.Context) (annotations.Annotations, err
  * If we can list the resources, we know that the user has the required permissions.
  * If we can't list the resources, we know that the user does not have the required permissions.
  */
-func (bb *BitBucket) ValidateWorkspace(ctx context.Context, workspaceId string) error {
+func (bb *Bitbucket) ValidateWorkspace(ctx context.Context, workspaceId string) error {
 	pagination := bitbucket.PaginationVars{
 		Limit: 1,
 	}
@@ -168,7 +168,7 @@ func (bb *BitBucket) ValidateWorkspace(ctx context.Context, workspaceId string) 
 	return nil
 }
 
-func New(ctx context.Context, workspaces []string, auth common.AuthOption) (*BitBucket, error) {
+func New(ctx context.Context, workspaces []string, auth common.AuthOption) (*Bitbucket, error) {
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
 	if err != nil {
 		return nil, err
@@ -179,7 +179,7 @@ func New(ctx context.Context, workspaces []string, auth common.AuthOption) (*Bit
 		return nil, err
 	}
 
-	return &BitBucket{
+	return &Bitbucket{
 		client:     bitbucket.NewClient(auth.Apply(), httpClient),
 		workspaces: workspaces,
 	}, nil

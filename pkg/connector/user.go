@@ -43,8 +43,6 @@ func userResource(ctx context.Context, user *bitbucket.User, parentResourceID *v
 	userTraitOptions := []rs.UserTraitOption{
 		rs.WithUserProfile(profile),
 		rs.WithStatus(v2.UserTrait_Status_STATUS_UNSPECIFIED),
-		// TODO: research retrieving email from Bitbucket
-		// rs.WithEmail(user.Email, true),
 	}
 
 	resource, err := rs.NewUserResource(
@@ -73,7 +71,7 @@ func (u *userResourceType) List(ctx context.Context, parentId *v2.ResourceId, to
 		return nil, "", nil, err
 	}
 
-	users, nextToken, annotations, err := u.client.GetWorkspaceMembers(
+	users, nextToken, err := u.client.GetWorkspaceMembers(
 		ctx,
 		parentId.Resource,
 		bitbucket.PaginationVars{
@@ -102,7 +100,7 @@ func (u *userResourceType) List(ctx context.Context, parentId *v2.ResourceId, to
 		rv = append(rv, ur)
 	}
 
-	return rv, pageToken, annotations, nil
+	return rv, pageToken, nil, nil
 }
 
 func (u *userResourceType) Entitlements(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {

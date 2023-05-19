@@ -71,7 +71,7 @@ func (bb *Bitbucket) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error
 // Validate hits the Bitbucket API to validate that the configured credentials are valid and compatible.
 func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, error) {
 	// get the scope of used credentials
-	user, annos, err := bb.client.GetCurrentUser(ctx)
+	user, err := bb.client.GetCurrentUser(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("bitbucket-connector: failed to get current user: %w", err)
 	}
@@ -83,35 +83,35 @@ func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, err
 	case "team":
 		bb.client.SetupWorkspaceScope(user.Id)
 	default:
-		return annos, fmt.Errorf("bitbucket-connector: unsupported user type: %s", user.Type)
+		return nil, fmt.Errorf("bitbucket-connector: unsupported user type: %s", user.Type)
 	}
 
 	// check if a user has the required permissions workspaces he belongs to
 	if bb.client.IsUserScoped() {
 		workspaceIds, err := bb.client.WorkspaceIds(ctx)
 		if err != nil {
-			return annos, fmt.Errorf("bitbucket-connector: failed to get workspace ids: %w", err)
+			return nil, fmt.Errorf("bitbucket-connector: failed to get workspace ids: %w", err)
 		}
 
 		for _, workspaceId := range workspaceIds {
 			err = bb.ValidateWorkspace(ctx, workspaceId)
 			if err != nil {
-				return annos, err
+				return nil, err
 			}
 		}
 	} else {
 		workspaceId, err := bb.client.WorkspaceId()
 		if err != nil {
-			return annos, fmt.Errorf("bitbucket-connector: failed to get workspace id: %w", err)
+			return nil, fmt.Errorf("bitbucket-connector: failed to get workspace id: %w", err)
 		}
 
 		err = bb.ValidateWorkspace(ctx, workspaceId)
 		if err != nil {
-			return annos, err
+			return nil, err
 		}
 	}
 
-	return annos, nil
+	return nil, nil
 }
 
 /**
@@ -134,7 +134,7 @@ func (bb *Bitbucket) ValidateWorkspace(ctx context.Context, workspaceId string) 
 
 	// Check if we can list permissions for each project
 	for _, project := range projects {
-		_, _, _, err := bb.client.GetProjectGroupPermissions(ctx, workspaceId, project.Key, pagination)
+		_, _, err := bb.client.GetProjectGroupPermissions(ctx, workspaceId, project.Key, pagination)
 		if err != nil {
 			return fmt.Errorf("bitbucket-connector: user is not able to list project permissions: %w", err)
 		}
@@ -146,7 +146,7 @@ func (bb *Bitbucket) ValidateWorkspace(ctx context.Context, workspaceId string) 
 
 		// Check if we can list permissions for each repository
 		for _, repository := range repositories {
-			_, _, _, err := bb.client.GetRepositoryGroupPermissions(ctx, workspaceId, repository.Slug, pagination)
+			_, _, err := bb.client.GetRepositoryGroupPermissions(ctx, workspaceId, repository.Slug, pagination)
 			if err != nil {
 				return fmt.Errorf("bitbucket-connector: user is not able to list repository permissions: %w", err)
 			}
@@ -154,13 +154,13 @@ func (bb *Bitbucket) ValidateWorkspace(ctx context.Context, workspaceId string) 
 	}
 
 	// Check if we can list user groups
-	_, _, err = bb.client.GetWorkspaceUserGroups(ctx, workspaceId)
+	_, err = bb.client.GetWorkspaceUserGroups(ctx, workspaceId)
 	if err != nil {
 		return fmt.Errorf("bitbucket-connector: user is not able to list user groups: %w", err)
 	}
 
 	// Check if we can list users
-	_, _, _, err = bb.client.GetWorkspaceMembers(ctx, workspaceId, pagination)
+	_, _, err = bb.client.GetWorkspaceMembers(ctx, workspaceId, pagination)
 	if err != nil {
 		return fmt.Errorf("bitbucket-connector: user is not able to list users: %w", err)
 	}
@@ -193,7 +193,7 @@ func resolveAuth(auth common.AuthOption, httpClient *http.Client, ctx context.Co
 		}
 
 		return common.BearerAuth{
-			Token: *accessToken,
+			Token: accessToken,
 		}, nil
 	}
 

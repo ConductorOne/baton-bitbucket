@@ -28,7 +28,7 @@ type projectResourceType struct {
 	resourceType *v2.ResourceType
 	client       *bitbucket.Client
 
-	usersGranted map[string][]string
+	usersGranted map[string]map[string][]string
 }
 
 func (p *projectResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -76,7 +76,7 @@ func (p *projectResourceType) List(ctx context.Context, parentId *v2.ResourceId,
 		return nil, "", nil, err
 	}
 
-	projects, nextToken, annotations, err := p.client.GetWorkspaceProjects(
+	projects, nextToken, err := p.client.GetWorkspaceProjects(
 		ctx,
 		parentId.Resource,
 		bitbucket.PaginationVars{
@@ -97,15 +97,15 @@ func (p *projectResourceType) List(ctx context.Context, parentId *v2.ResourceId,
 	for _, project := range projects {
 		projectCopy := project
 
-		tResource, err := projectResource(ctx, &projectCopy, parentId)
+		pr, err := projectResource(ctx, &projectCopy, parentId)
 		if err != nil {
 			return nil, "", nil, err
 		}
 
-		rv = append(rv, tResource)
+		rv = append(rv, pr)
 	}
 
-	return rv, pageToken, annotations, nil
+	return rv, pageToken, nil, nil
 }
 
 func (p *projectResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
@@ -181,7 +181,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 
 	// create a membership grant for each repository in the project
 	case resourceTypeRepository.Id:
-		repos, nextToken, _, err := p.client.GetProjectRepos(
+		repos, nextToken, err := p.client.GetProjectRepos(
 			ctx,
 			workspaceId,
 			projectId,
@@ -218,7 +218,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 
 	// create a permission grant for each usergroup in the project
 	case resourceTypeUserGroup.Id:
-		permissions, nextToken, _, err := p.client.GetProjectGroupPermissions(
+		permissions, nextToken, err := p.client.GetProjectGroupPermissions(
 			ctx,
 			workspaceId,
 			projectKey,
@@ -242,7 +242,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 				continue
 			}
 
-			members, _, err := p.client.GetUserGroupMembers(
+			members, err := p.client.GetUserGroupMembers(
 				ctx,
 				workspaceId,
 				permission.Group.Slug,
@@ -255,7 +255,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 				memberCopy := member
 
 				// skip if already granted
-				if contains(member.Id, p.usersGranted[permission.Value]) {
+				if contains(member.Id, p.usersGranted[resource.Id.Resource][permission.Value]) {
 					continue
 				}
 
@@ -273,13 +273,20 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 					),
 				)
 
-				p.usersGranted[permission.Value] = append(p.usersGranted[permission.Value], member.Id)
+				if p.usersGranted[resource.Id.Resource] == nil {
+					p.usersGranted[resource.Id.Resource] = make(map[string][]string)
+				}
+
+				p.usersGranted[resource.Id.Resource][permission.Value] = append(
+					p.usersGranted[resource.Id.Resource][permission.Value],
+					member.Id,
+				)
 			}
 		}
 
 	// create a permission grant for each user in the project
 	case resourceTypeUser.Id:
-		permissions, nextToken, _, err := p.client.GetProjectUserPermissions(
+		permissions, nextToken, err := p.client.GetProjectUserPermissions(
 			ctx,
 			workspaceId,
 			projectKey,
@@ -304,7 +311,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 			}
 
 			// skip if already granted
-			if contains(permission.User.Id, p.usersGranted[permission.Value]) {
+			if contains(permission.User.Id, p.usersGranted[resource.Id.Resource][permission.Value]) {
 				continue
 			}
 
@@ -322,7 +329,14 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 				),
 			)
 
-			p.usersGranted[permission.Value] = append(p.usersGranted[permission.Value], permission.User.Id)
+			if p.usersGranted[resource.Id.Resource] == nil {
+				p.usersGranted[resource.Id.Resource] = make(map[string][]string)
+			}
+
+			p.usersGranted[resource.Id.Resource][permission.Value] = append(
+				p.usersGranted[resource.Id.Resource][permission.Value],
+				permission.User.Id,
+			)
 		}
 
 	default:
@@ -341,6 +355,6 @@ func projectBuilder(client *bitbucket.Client) *projectResourceType {
 	return &projectResourceType{
 		resourceType: resourceTypeProject,
 		client:       client,
-		usersGranted: make(map[string][]string),
+		usersGranted: make(map[string]map[string][]string),
 	}
 }

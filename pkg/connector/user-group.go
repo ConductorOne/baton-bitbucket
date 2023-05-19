@@ -58,7 +58,7 @@ func (ug *userGroupResourceType) List(ctx context.Context, parentId *v2.Resource
 		return nil, "", nil, nil
 	}
 
-	userGroups, annotations, err := ug.client.GetWorkspaceUserGroups(ctx, parentId.Resource)
+	userGroups, err := ug.client.GetWorkspaceUserGroups(ctx, parentId.Resource)
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list userGroups: %w", err)
 	}
@@ -75,7 +75,7 @@ func (ug *userGroupResourceType) List(ctx context.Context, parentId *v2.Resource
 		rv = append(rv, gr)
 	}
 
-	return rv, "", annotations, nil
+	return rv, "", nil, nil
 }
 
 func (ug *userGroupResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
@@ -112,7 +112,7 @@ func (ug *userGroupResourceType) Grants(ctx context.Context, resource *v2.Resour
 	// create membership grants
 	var rv []*v2.Grant
 	for _, id := range userIds {
-		user, _, err := ug.client.GetUser(ctx, id)
+		user, err := ug.client.GetUser(ctx, id)
 		if err != nil {
 			return nil, "", nil, err
 		}

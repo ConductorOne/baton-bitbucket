@@ -54,7 +54,7 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, toke
 			return nil, "", nil, err
 		}
 
-		workspaces, nextToken, annotations, err := w.client.GetWorkspaces(
+		workspaces, nextToken, err := w.client.GetWorkspaces(
 			ctx,
 			bitbucket.PaginationVars{
 				Limit: ResourcesPageSize,
@@ -86,7 +86,7 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, toke
 			rv = append(rv, wr)
 		}
 
-		return rv, pageToken, annotations, nil
+		return rv, pageToken, nil, nil
 	}
 
 	workspaceId, err := w.client.WorkspaceId()
@@ -95,14 +95,14 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, toke
 	}
 
 	// If the scope is a workspace/project/repo, we only want to return that one available workspace.
-	workspace, annos, err := w.client.GetWorkspace(ctx, workspaceId)
+	workspace, err := w.client.GetWorkspace(ctx, workspaceId)
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to get workspace: %w", err)
 	}
 
 	// Return empty list if the workspace is not in the list of allowed workspaces.
 	if _, ok := w.workspaces[workspace.Slug]; !ok && len(w.workspaces) > 0 {
-		return rv, "", annos, nil
+		return rv, "", nil, nil
 	}
 
 	wr, err := workspaceResource(ctx, workspace)
@@ -112,7 +112,7 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, toke
 
 	rv = append(rv, wr)
 
-	return rv, "", annos, nil
+	return rv, "", nil, nil
 }
 
 func (w *workspaceResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
@@ -141,7 +141,7 @@ func (w *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resourc
 		return nil, "", nil, err
 	}
 
-	users, nextToken, annotations, err := w.client.GetWorkspaceMembers(
+	users, nextToken, err := w.client.GetWorkspaceMembers(
 		ctx,
 		resource.Id.Resource,
 		bitbucket.PaginationVars{Limit: ResourcesPageSize, Page: bag.PageToken()},
@@ -173,7 +173,7 @@ func (w *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resourc
 		)
 	}
 
-	return rv, pageToken, annotations, nil
+	return rv, pageToken, nil, nil
 }
 
 func workspaceBuilder(client *bitbucket.Client, workspaces []string) *workspaceResourceType {

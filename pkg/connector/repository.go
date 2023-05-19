@@ -69,7 +69,7 @@ func (r *repositoryResourceType) List(ctx context.Context, parentId *v2.Resource
 	}
 
 	workspaceId, projectId := parts[0], parts[1]
-	repositories, nextToken, annotations, err := r.client.GetProjectRepos(
+	repositories, nextToken, err := r.client.GetProjectRepos(
 		ctx,
 		workspaceId,
 		projectId,
@@ -99,7 +99,7 @@ func (r *repositoryResourceType) List(ctx context.Context, parentId *v2.Resource
 		rv = append(rv, tResource)
 	}
 
-	return rv, pageToken, annotations, nil
+	return rv, pageToken, nil, nil
 }
 
 func (r *repositoryResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
@@ -149,7 +149,7 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 
 	// create a permission grant for each usergroup in the repository
 	case resourceTypeUserGroup.Id:
-		permissions, nextToken, _, err := r.client.GetRepositoryGroupPermissions(
+		permissions, nextToken, err := r.client.GetRepositoryGroupPermissions(
 			ctx,
 			workspaceId,
 			resource.Id.Resource,
@@ -174,7 +174,7 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 			}
 
 			// get all members in the group
-			members, _, err := r.client.GetUserGroupMembers(
+			members, err := r.client.GetUserGroupMembers(
 				ctx,
 				workspaceId,
 				permission.Group.Slug,
@@ -211,7 +211,7 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 
 	// create a permission grant for each user in the repository
 	case resourceTypeUser.Id:
-		permissions, nextToken, _, err := r.client.GetRepositoryUserPermissions(
+		permissions, nextToken, err := r.client.GetRepositoryUserPermissions(
 			ctx,
 			workspaceId,
 			resource.Id.Resource,

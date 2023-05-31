@@ -20,7 +20,7 @@ type repositoryResourceType struct {
 	resourceType *v2.ResourceType
 	client       *bitbucket.Client
 
-	usersGranted map[string][]string
+	usersGranted map[string]map[string][]string
 }
 
 func (r *repositoryResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -185,7 +185,7 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 
 			for _, member := range members {
 				// skip if already granted
-				if contains(member.Id, r.usersGranted[permission.Value]) {
+				if contains(member.Id, r.usersGranted[resource.Id.Resource][permission.Value]) {
 					continue
 				}
 
@@ -205,7 +205,14 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 					),
 				)
 
-				r.usersGranted[permission.Value] = append(r.usersGranted[permission.Value], member.Id)
+				if r.usersGranted[resource.Id.Resource] == nil {
+					r.usersGranted[resource.Id.Resource] = make(map[string][]string)
+				}
+
+				r.usersGranted[resource.Id.Resource][permission.Value] = append(
+					r.usersGranted[resource.Id.Resource][permission.Value],
+					member.Id,
+				)
 			}
 		}
 
@@ -236,7 +243,7 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 			}
 
 			// skip if already granted
-			if contains(permission.User.Id, r.usersGranted[permission.Value]) {
+			if contains(permission.User.Id, r.usersGranted[resource.Id.Resource][permission.Value]) {
 				continue
 			}
 
@@ -254,7 +261,14 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 				),
 			)
 
-			r.usersGranted[permission.Value] = append(r.usersGranted[permission.Value], permission.User.Id)
+			if r.usersGranted[resource.Id.Resource] == nil {
+				r.usersGranted[resource.Id.Resource] = make(map[string][]string)
+			}
+
+			r.usersGranted[resource.Id.Resource][permission.Value] = append(
+				r.usersGranted[resource.Id.Resource][permission.Value],
+				permission.User.Id,
+			)
 		}
 
 	default:
@@ -274,6 +288,6 @@ func repositoryBuilder(client *bitbucket.Client) *repositoryResourceType {
 		resourceType: resourceTypeRepository,
 		client:       client,
 
-		usersGranted: make(map[string][]string),
+		usersGranted: make(map[string]map[string][]string),
 	}
 }

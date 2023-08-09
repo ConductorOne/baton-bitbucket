@@ -1,6 +1,8 @@
 package connector
 
 import (
+	"strings"
+
 	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
@@ -56,4 +58,10 @@ func isUserPresent(users []bitbucket.User, targetUserId string) bool {
 	}
 
 	return false
+}
+
+func splitFullName(fullName string) (string, string) {
+	parts := strings.Split(fullName, " ")
+
+	return parts[0], strings.Join(parts[1:], " ")
 }

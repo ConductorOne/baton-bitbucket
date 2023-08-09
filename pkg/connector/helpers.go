@@ -47,3 +47,13 @@ func contains(payload string, values []string) bool {
 
 	return false
 }
+
+func isUserPresent(users []bitbucket.User, targetUserId string) bool {
+	for _, user := range users {
+		if user.Id == targetUserId {
+			return true
+		}
+	}
+
+	return false
+}

@@ -39,7 +39,9 @@ const (
 
 	RepoPermissionsBaseURL      = ProjectRepositoriesBaseURL + "/%s/permissions-config"
 	RepoGroupPermissionsBaseURL = RepoPermissionsBaseURL + "/groups"
+	RepoGroupPermissionBaseURL  = RepoPermissionsBaseURL + "/groups/%s"
 	RepoUserPermissionsBaseURL  = RepoPermissionsBaseURL + "/users"
+	RepoUserPermissionBaseURL   = RepoPermissionsBaseURL + "/users/%s"
 )
 
 type Client struct {
@@ -657,6 +659,82 @@ func (c *Client) GetRepositoryGroupPermissions(ctx context.Context, workspaceId 
 	return handlePagination(repositoryGroupPermissionsResponse)
 }
 
+// GetRepoGroupPermission returns group permission of specific group under provided repository.
+func (c *Client) GetRepoGroupPermission(
+	ctx context.Context,
+	workspaceId string,
+	repoId string,
+	groupSlug string,
+) (*GroupPermission, error) {
+	encodedWorkspaceId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(repoId)
+
+	var repoGroupPermissionsResponse GroupPermission
+	err := c.get(
+		ctx,
+		fmt.Sprintf(RepoGroupPermissionBaseURL, encodedWorkspaceId, encodedRepoId, groupSlug),
+		&repoGroupPermissionsResponse,
+		[]QueryParam{
+			prepareFilters("", "-*.*.workspace", "-*.*.owner"),
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &repoGroupPermissionsResponse, nil
+}
+
+// UpdateRepoGroupPermission updates group permission of specific group under provided repository.
+func (c *Client) UpdateRepoGroupPermission(
+	ctx context.Context,
+	workspaceId string,
+	repoId string,
+	groupSlug string,
+	permission string,
+) error {
+	encodedWorkspaceId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(repoId)
+
+	err := c.put(
+		ctx,
+		fmt.Sprintf(RepoGroupPermissionBaseURL, encodedWorkspaceId, encodedRepoId, groupSlug),
+		UpdatePermissionPayload{
+			Permission: permission,
+		},
+		nil,
+		nil,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteRepoGroupPermission removes group permission of specific group under provided repository.
+func (c *Client) DeleteRepoGroupPermission(
+	ctx context.Context,
+	workspaceId string,
+	repoId string,
+	groupSlug string,
+) error {
+	encodedWorkspaceId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(repoId)
+
+	err := c.delete(
+		ctx,
+		fmt.Sprintf(RepoGroupPermissionBaseURL, encodedWorkspaceId, encodedRepoId, groupSlug),
+		nil,
+		nil,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // GetRepositoryUserPermissions lists all user permissions that belong under specified repository.
 func (c *Client) GetRepositoryUserPermissions(ctx context.Context, workspaceId string, repoId string, getPermissionsVars PaginationVars) ([]UserPermission, string, error) {
 	encodedWorkspaceId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(repoId)
@@ -677,6 +755,82 @@ func (c *Client) GetRepositoryUserPermissions(ctx context.Context, workspaceId s
 	}
 
 	return handlePagination(repositoryUserPermissionsResponse)
+}
+
+// GetRepoUserPermission returns user permission of specific user under provided repository.
+func (c *Client) GetRepoUserPermission(
+	ctx context.Context,
+	workspaceId string,
+	repoId string,
+	userId string,
+) (*UserPermission, error) {
+	encodedWorkspaceId, encodedUserId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(userId), url.PathEscape(repoId)
+
+	var repoUserPermissionsResponse UserPermission
+	err := c.get(
+		ctx,
+		fmt.Sprintf(RepoUserPermissionBaseURL, encodedWorkspaceId, encodedRepoId, encodedUserId),
+		&repoUserPermissionsResponse,
+		[]QueryParam{
+			prepareFilters(""),
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &repoUserPermissionsResponse, nil
+}
+
+// UpdateRepoUserPermission updates user permission of specific user under provided repository.
+func (c *Client) UpdateRepoUserPermission(
+	ctx context.Context,
+	workspaceId string,
+	repoId string,
+	userId string,
+	permission string,
+) error {
+	encodedWorkspaceId, encodedUserId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(userId), url.PathEscape(repoId)
+
+	err := c.put(
+		ctx,
+		fmt.Sprintf(RepoUserPermissionBaseURL, encodedWorkspaceId, encodedRepoId, encodedUserId),
+		UpdatePermissionPayload{
+			Permission: permission,
+		},
+		nil,
+		nil,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteRepoUserPermission removes user permission of specific user under provided repository.
+func (c *Client) DeleteRepoUserPermission(
+	ctx context.Context,
+	workspaceId string,
+	repoId string,
+	userId string,
+) error {
+	encodedWorkspaceId, encodedUserId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(userId), url.PathEscape(repoId)
+
+	err := c.delete(
+		ctx,
+		fmt.Sprintf(RepoUserPermissionBaseURL, encodedWorkspaceId, encodedRepoId, encodedUserId),
+		nil,
+		nil,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func handlePagination[T any](resp ListResponse[T]) ([]T, string, error) {

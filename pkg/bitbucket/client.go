@@ -33,7 +33,9 @@ const (
 
 	ProjectPermissionsBaseURL      = WorkspacesBaseURL + "/%s/projects/%s/permissions-config"
 	ProjectGroupPermissionsBaseURL = ProjectPermissionsBaseURL + "/groups"
+	ProjectGroupPermissionBaseURL  = ProjectPermissionsBaseURL + "/groups/%s"
 	ProjectUserPermissionsBaseURL  = ProjectPermissionsBaseURL + "/users"
+	ProjectUserPermissionBaseURL   = ProjectPermissionsBaseURL + "/users/%s"
 
 	RepoPermissionsBaseURL      = ProjectRepositoriesBaseURL + "/%s/permissions-config"
 	RepoGroupPermissionsBaseURL = RepoPermissionsBaseURL + "/groups"
@@ -53,6 +55,10 @@ type LoginResponse struct {
 type ListResponse[T any] struct {
 	Values []T `json:"values"`
 	PaginationData
+}
+
+type UpdatePermissionPayload struct {
+	Permission string `json:"permission"`
 }
 
 func NewClient(auth string, httpClient *http.Client) *Client {
@@ -452,6 +458,82 @@ func (c *Client) GetProjectGroupPermissions(ctx context.Context, workspaceId str
 	return handlePagination(projectGroupPermissionsResponse)
 }
 
+// GetProjectGroupPermission returns group permission of specific group under provided project.
+func (c *Client) GetProjectGroupPermission(
+	ctx context.Context,
+	workspaceId string,
+	projectKey string,
+	groupSlug string,
+) (*GroupPermission, error) {
+	encodedWorkspaceId := url.PathEscape(workspaceId)
+
+	var projectGroupPermissionsResponse GroupPermission
+	err := c.get(
+		ctx,
+		fmt.Sprintf(ProjectGroupPermissionBaseURL, encodedWorkspaceId, projectKey, groupSlug),
+		&projectGroupPermissionsResponse,
+		[]QueryParam{
+			prepareFilters("", "-*.*.workspace", "-*.*.owner"),
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &projectGroupPermissionsResponse, nil
+}
+
+// UpdateProjectGroupPermission updates group permission of specific group under provided project.
+func (c *Client) UpdateProjectGroupPermission(
+	ctx context.Context,
+	workspaceId string,
+	projectKey string,
+	groupSlug string,
+	permission string,
+) error {
+	encodedWorkspaceId := url.PathEscape(workspaceId)
+
+	err := c.put(
+		ctx,
+		fmt.Sprintf(ProjectGroupPermissionBaseURL, encodedWorkspaceId, projectKey, groupSlug),
+		UpdatePermissionPayload{
+			Permission: permission,
+		},
+		nil,
+		nil,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteProjectGroupPermission removes group permission of specific group under provided project.
+func (c *Client) DeleteProjectGroupPermission(
+	ctx context.Context,
+	workspaceId string,
+	projectKey string,
+	groupSlug string,
+) error {
+	encodedWorkspaceId := url.PathEscape(workspaceId)
+
+	err := c.delete(
+		ctx,
+		fmt.Sprintf(ProjectGroupPermissionBaseURL, encodedWorkspaceId, projectKey, groupSlug),
+		nil,
+		nil,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // GetProjectUserPermissions lists all user permissions that belong under specified project.
 func (c *Client) GetProjectUserPermissions(ctx context.Context, workspaceId string, projectKey string, getPermissionsVars PaginationVars) ([]UserPermission, string, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
@@ -472,6 +554,85 @@ func (c *Client) GetProjectUserPermissions(ctx context.Context, workspaceId stri
 	}
 
 	return handlePagination(projectUserPermissionsResponse)
+}
+
+// GetProjectUserPermission returns user permission of specific user under provided project.
+func (c *Client) GetProjectUserPermission(
+	ctx context.Context,
+	workspaceId string,
+	projectKey string,
+	userId string,
+) (*UserPermission, error) {
+	encodedWorkspaceId := url.PathEscape(workspaceId)
+	encodedUserId := url.PathEscape(userId)
+
+	var projectUserPermissionsResponse UserPermission
+	err := c.get(
+		ctx,
+		fmt.Sprintf(ProjectUserPermissionBaseURL, encodedWorkspaceId, projectKey, encodedUserId),
+		&projectUserPermissionsResponse,
+		[]QueryParam{
+			prepareFilters(""),
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &projectUserPermissionsResponse, nil
+}
+
+// UpdateProjectUserPermission updates user permission of specific user under provided project.
+func (c *Client) UpdateProjectUserPermission(
+	ctx context.Context,
+	workspaceId string,
+	projectKey string,
+	userId string,
+	permission string,
+) error {
+	encodedWorkspaceId := url.PathEscape(workspaceId)
+	encodedUserId := url.PathEscape(userId)
+
+	err := c.put(
+		ctx,
+		fmt.Sprintf(ProjectUserPermissionBaseURL, encodedWorkspaceId, projectKey, encodedUserId),
+		UpdatePermissionPayload{
+			Permission: permission,
+		},
+		nil,
+		nil,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteProjectUserPermission removes user permission of specific user under provided project.
+func (c *Client) DeleteProjectUserPermission(
+	ctx context.Context,
+	workspaceId string,
+	projectKey string,
+	userId string,
+) error {
+	encodedWorkspaceId := url.PathEscape(workspaceId)
+	encodedUserId := url.PathEscape(userId)
+
+	err := c.delete(
+		ctx,
+		fmt.Sprintf(ProjectUserPermissionBaseURL, encodedWorkspaceId, projectKey, encodedUserId),
+		nil,
+		nil,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetRepositoryGroupPermissions lists all group permissions that belong under specified repository.
@@ -588,7 +749,8 @@ func (c *Client) doRequest(
 	}
 
 	req.Header.Set("Authorization", c.auth)
-	req.Header.Set("accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
 
 	rawResponse, err := c.httpClient.Do(req)
 	if err != nil {

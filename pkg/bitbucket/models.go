@@ -42,6 +42,7 @@ type Repository struct {
 	FullName    string `json:"full_name"`
 	Description string `json:"description"`
 }
+
 type Permission struct {
 	Slug  string `json:"slug"`
 	Name  string `json:"name"`

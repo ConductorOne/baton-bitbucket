@@ -129,7 +129,7 @@ func (p *projectResourceType) Entitlements(ctx context.Context, resource *v2.Res
 		permissionOptions := []ent.EntitlementOption{
 			ent.WithGrantableTo(resourceTypeUser, resourceTypeUserGroup),
 			ent.WithDisplayName(fmt.Sprintf("%s Project %s", resource.DisplayName, permission)),
-			ent.WithDescription(fmt.Sprintf("%s access to %s project in Bitbucket", titleCaser.String(permission), resource.DisplayName)),
+			ent.WithDescription(fmt.Sprintf("%s access to %s project in Bitbucket", titleCase(permission), resource.DisplayName)),
 		}
 
 		rv = append(rv, ent.NewPermissionEntitlement(

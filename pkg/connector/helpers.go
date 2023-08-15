@@ -11,7 +11,12 @@ import (
 )
 
 var ResourcesPageSize = 50
-var titleCaser = cases.Title(language.English)
+
+func titleCase(s string) string {
+	titleCaser := cases.Title(language.English)
+
+	return titleCaser.String(s)
+}
 
 func parsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, error) {
 	b := &pagination.Bag{}

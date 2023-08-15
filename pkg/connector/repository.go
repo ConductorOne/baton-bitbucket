@@ -110,7 +110,7 @@ func (r *repositoryResourceType) Entitlements(ctx context.Context, resource *v2.
 		permissionOptions := []ent.EntitlementOption{
 			ent.WithGrantableTo(resourceTypeUser, resourceTypeUserGroup),
 			ent.WithDisplayName(fmt.Sprintf("%s Repository %s", resource.DisplayName, role)),
-			ent.WithDescription(fmt.Sprintf("%s access to %s repository in Bitbucket", titleCaser.String(role), resource.DisplayName)),
+			ent.WithDescription(fmt.Sprintf("%s access to %s repository in Bitbucket", titleCase(role), resource.DisplayName)),
 		}
 
 		rv = append(rv, ent.NewPermissionEntitlement(

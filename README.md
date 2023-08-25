@@ -76,8 +76,10 @@ Available Commands:
   help               Help about any command
 
 Flags:
-      --consumer_key string      OAuth consumer key used to connect to the BitBucket API via oauth. ($BATON_CONSUMER_ID)
-      --consumer_secret string   The consumer secret used to connect to the BitBucket API via oauth. ($BATON_CONSUMER_SECRET)
+      --client-id string         The client ID used to authenticate with ConductorOne ($BATON_CLIENT_ID)
+      --client-secret string     The client secret used to authenticate with ConductorOne ($BATON_CLIENT_SECRET)
+      --consumer-key string      OAuth consumer key used to connect to the BitBucket API via oauth. ($BATON_CONSUMER_ID)
+      --consumer-secret string   The consumer secret used to connect to the BitBucket API via oauth. ($BATON_CONSUMER_SECRET)
   -f, --file string              The path to the c1z file to sync with ($BATON_FILE) (default "sync.c1z")
   -h, --help                     help for baton-bitbucket
       --log-format string        The output format for logs: json, console ($BATON_LOG_FORMAT) (default "json")

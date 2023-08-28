@@ -3,7 +3,6 @@ package connector
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -23,15 +22,7 @@ func (u *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 
 // Create a new connector resource for an Bitbucket user.
 func userResource(ctx context.Context, user *bitbucket.User, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
-	names := strings.SplitN(user.Name, " ", 2)
-	var firstName, lastName string
-	switch len(names) {
-	case 1:
-		firstName = names[0]
-	case 2:
-		firstName = names[0]
-		lastName = names[1]
-	}
+	firstName, lastName := splitFullName(user.Name)
 
 	profile := map[string]interface{}{
 		"first_name": firstName,

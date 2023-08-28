@@ -12,6 +12,8 @@ import (
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 )
 
 var repositoryRoles = []string{roleRead, roleWrite, roleAdmin}
@@ -19,8 +21,6 @@ var repositoryRoles = []string{roleRead, roleWrite, roleAdmin}
 type repositoryResourceType struct {
 	resourceType *v2.ResourceType
 	client       *bitbucket.Client
-
-	usersGranted map[string]map[string][]string
 }
 
 func (r *repositoryResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -108,9 +108,9 @@ func (r *repositoryResourceType) Entitlements(ctx context.Context, resource *v2.
 	// create entitlements for each repository role (read, write, admin)
 	for _, role := range repositoryRoles {
 		permissionOptions := []ent.EntitlementOption{
-			ent.WithGrantableTo(resourceTypeUser),
+			ent.WithGrantableTo(resourceTypeUser, resourceTypeUserGroup),
 			ent.WithDisplayName(fmt.Sprintf("%s Repository %s", resource.DisplayName, role)),
-			ent.WithDescription(fmt.Sprintf("%s access to %s repository in Bitbucket", titleCaser.String(role), resource.DisplayName)),
+			ent.WithDescription(fmt.Sprintf("%s access to %s repository in Bitbucket", titleCase(role), resource.DisplayName)),
 		}
 
 		rv = append(rv, ent.NewPermissionEntitlement(
@@ -173,47 +173,21 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 				continue
 			}
 
-			// get all members in the group
-			members, err := r.client.GetUserGroupMembers(
-				ctx,
-				workspaceId,
-				permission.Group.Slug,
-			)
+			groupCopy := permission.Group
+
+			gr, err := userGroupResource(ctx, &groupCopy, resource.ParentResourceId)
 			if err != nil {
-				return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list group members: %w", err)
+				return nil, "", nil, err
 			}
 
-			for _, member := range members {
-				// skip if already granted
-				if contains(member.Id, r.usersGranted[resource.Id.Resource][permission.Value]) {
-					continue
-				}
-
-				memberCopy := member
-
-				ur, err := userResource(ctx, &memberCopy, resource.ParentResourceId)
-				if err != nil {
-					return nil, "", nil, err
-				}
-
-				rv = append(
-					rv,
-					grant.NewGrant(
-						resource,
-						permission.Value,
-						ur.Id,
-					),
-				)
-
-				if r.usersGranted[resource.Id.Resource] == nil {
-					r.usersGranted[resource.Id.Resource] = make(map[string][]string)
-				}
-
-				r.usersGranted[resource.Id.Resource][permission.Value] = append(
-					r.usersGranted[resource.Id.Resource][permission.Value],
-					member.Id,
-				)
-			}
+			rv = append(
+				rv,
+				grant.NewGrant(
+					resource,
+					permission.Value,
+					gr.Id,
+				),
+			)
 		}
 
 	// create a permission grant for each user in the repository
@@ -242,12 +216,9 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 				continue
 			}
 
-			// skip if already granted
-			if contains(permission.User.Id, r.usersGranted[resource.Id.Resource][permission.Value]) {
-				continue
-			}
+			memberCopy := permission.User
 
-			ur, err := userResource(ctx, &permission.User, resource.ParentResourceId)
+			ur, err := userResource(ctx, &memberCopy, resource.ParentResourceId)
 			if err != nil {
 				return nil, "", nil, err
 			}
@@ -259,15 +230,6 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 					permission.Value,
 					ur.Id,
 				),
-			)
-
-			if r.usersGranted[resource.Id.Resource] == nil {
-				r.usersGranted[resource.Id.Resource] = make(map[string][]string)
-			}
-
-			r.usersGranted[resource.Id.Resource][permission.Value] = append(
-				r.usersGranted[resource.Id.Resource][permission.Value],
-				permission.User.Id,
 			)
 		}
 
@@ -283,11 +245,163 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 	return rv, pageToken, nil, nil
 }
 
+func (r *repositoryResourceType) GetPermission(ctx context.Context, principal *v2.Resource, workspaceId, repoId string) (*bitbucket.Permission, error) {
+	if principal.Id.ResourceType == resourceTypeUser.Id {
+		userPermission, err := r.client.GetRepoUserPermission(
+			ctx,
+			workspaceId,
+			repoId,
+			principal.Id.Resource,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("bitbucket-connector: failed to get repository user permission: %w", err)
+		}
+
+		return &userPermission.Permission, nil
+	} else if principal.Id.ResourceType == resourceTypeUserGroup.Id {
+		groupPermission, err := r.client.GetRepoGroupPermission(
+			ctx,
+			workspaceId,
+			repoId,
+			principal.Id.Resource,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("bitbucket-connector: failed to get repository group permission: %w", err)
+		}
+
+		return &groupPermission.Permission, nil
+	}
+
+	return nil, fmt.Errorf("bitbucket-connector: invalid principal resource type: %s", principal.Id.ResourceType)
+}
+
+func (r *repositoryResourceType) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {
+	l := ctxzap.Extract(ctx)
+
+	principalIsUser := principal.Id.ResourceType == resourceTypeUser.Id
+	principalIsGroup := principal.Id.ResourceType == resourceTypeUserGroup.Id
+
+	if !principalIsUser && !principalIsGroup {
+		l.Warn(
+			"bitbucket-connector: only users and groups can be granted repository permissions",
+			zap.String("principal_id", principal.Id.Resource),
+			zap.String("principal_type", principal.Id.ResourceType),
+		)
+
+		return nil, fmt.Errorf("bitbucket-connector: only users and groups can be granted repository permissions")
+	}
+
+	workspaceId, repoId := principal.ParentResourceId.Resource, entitlement.Resource.Id.Resource
+	permission, err := r.GetPermission(ctx, principal, workspaceId, repoId)
+	if err != nil {
+		return nil, err
+	}
+
+	// check if the permission is supported repository role
+	if !contains(entitlement.Slug, repositoryRoles) {
+		return nil, fmt.Errorf("bitbucket-connector: unsupported repository role: %s", entitlement.Slug)
+	}
+
+	// warn if the principal already has a repository permission
+	if permission.Value != roleNone {
+		l.Warn(
+			"bitbucket-connector: principal already has a repository permission",
+		)
+	}
+
+	// update the repository permission
+	if principalIsUser {
+		err := r.client.UpdateRepoUserPermission(
+			ctx,
+			workspaceId,
+			repoId,
+			principal.Id.Resource,
+			entitlement.Slug,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("bitbucket-connector: failed to update repository user permission: %w", err)
+		}
+	} else if principalIsGroup {
+		err := r.client.UpdateRepoGroupPermission(
+			ctx,
+			workspaceId,
+			repoId,
+			principal.Id.Resource,
+			entitlement.Slug,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("bitbucket-connector: failed to update repository group permission: %w", err)
+		}
+	}
+
+	return nil, nil
+}
+
+func (r *repositoryResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annotations.Annotations, error) {
+	l := ctxzap.Extract(ctx)
+
+	principal := grant.Principal
+	entitlement := grant.Entitlement
+	principalIsUser := principal.Id.ResourceType == resourceTypeUser.Id
+	principalIsGroup := principal.Id.ResourceType == resourceTypeUserGroup.Id
+
+	if !principalIsUser && !principalIsGroup {
+		l.Warn(
+			"bitbucket-connector: only users and groups can have repository permissions revoked",
+			zap.String("principal_id", principal.Id.Resource),
+			zap.String("principal_type", principal.Id.ResourceType),
+		)
+
+		return nil, fmt.Errorf("bitbucket-connector: only users and groups can have repository permissions revoked")
+	}
+
+	workspaceId, repoId := principal.ParentResourceId.Resource, entitlement.Resource.Id.Resource
+	permission, err := r.GetPermission(ctx, principal, workspaceId, repoId)
+	if err != nil {
+		return nil, err
+	}
+
+	// check if the permission is supported repository role
+	if !contains(entitlement.Slug, repositoryRoles) {
+		return nil, fmt.Errorf("bitbucket-connector: unsupported repository role: %s", permission.Value)
+	}
+
+	// warn if the principal already has a repository permission
+	if permission.Value != roleNone {
+		l.Warn(
+			"bitbucket-connector: principal already has a repository permission",
+		)
+	}
+
+	// remove the repository permission
+	if principalIsUser {
+		err := r.client.DeleteRepoUserPermission(
+			ctx,
+			workspaceId,
+			repoId,
+			principal.Id.Resource,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("bitbucket-connector: failed to remove repository user permission: %w", err)
+		}
+	} else if principalIsGroup {
+		err := r.client.DeleteRepoGroupPermission(
+			ctx,
+			workspaceId,
+			repoId,
+			principal.Id.Resource,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("bitbucket-connector: failed to remove repository group permission: %w", err)
+		}
+	}
+
+	return nil, nil
+}
+
 func repositoryBuilder(client *bitbucket.Client) *repositoryResourceType {
 	return &repositoryResourceType{
 		resourceType: resourceTypeRepository,
 		client:       client,
-
-		usersGranted: make(map[string]map[string][]string),
 	}
 }

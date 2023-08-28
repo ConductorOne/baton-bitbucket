@@ -120,7 +120,7 @@ func (w *workspaceResourceType) Entitlements(ctx context.Context, resource *v2.R
 
 	assignmentOptions := []ent.EntitlementOption{
 		ent.WithGrantableTo(resourceTypeUser),
-		ent.WithDisplayName(fmt.Sprintf("%s Workspace %s", resource.DisplayName, titleCaser.String(memberEntitlement))),
+		ent.WithDisplayName(fmt.Sprintf("%s Workspace %s", resource.DisplayName, titleCase(memberEntitlement))),
 		ent.WithDescription(fmt.Sprintf("Workspace %s role in Bitbucket", resource.DisplayName)),
 	}
 

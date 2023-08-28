@@ -1,6 +1,8 @@
 package connector
 
 import (
+	"strings"
+
 	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
@@ -9,7 +11,12 @@ import (
 )
 
 var ResourcesPageSize = 50
-var titleCaser = cases.Title(language.English)
+
+func titleCase(s string) string {
+	titleCaser := cases.Title(language.English)
+
+	return titleCaser.String(s)
+}
 
 func parsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, error) {
 	b := &pagination.Bag{}
@@ -46,4 +53,20 @@ func contains(payload string, values []string) bool {
 	}
 
 	return false
+}
+
+func isUserPresent(users []bitbucket.User, targetUserId string) bool {
+	for _, user := range users {
+		if user.Id == targetUserId {
+			return true
+		}
+	}
+
+	return false
+}
+
+func splitFullName(fullName string) (string, string) {
+	parts := strings.Split(fullName, " ")
+
+	return parts[0], strings.Join(parts[1:], " ")
 }

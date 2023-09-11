@@ -33,7 +33,7 @@ func userResource(ctx context.Context, user *bitbucket.User, parentResourceID *v
 
 	userTraitOptions := []rs.UserTraitOption{
 		rs.WithUserProfile(profile),
-		rs.WithStatus(v2.UserTrait_Status_STATUS_UNSPECIFIED),
+		rs.WithStatus(v2.UserTrait_Status_STATUS_ENABLED),
 	}
 
 	resource, err := rs.NewUserResource(

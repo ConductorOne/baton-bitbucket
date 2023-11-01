@@ -355,8 +355,28 @@ func (r *repositoryResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 		return nil, fmt.Errorf("bitbucket-connector: only users and groups can have repository permissions revoked")
 	}
 
-	workspaceId, repoId := principal.ParentResourceId.Resource, entitlement.Resource.Id.Resource
-	permission, err := r.GetPermission(ctx, principal, workspaceId, repoId)
+	if principal.ParentResourceId == nil {
+		l.Warn(
+			"bitbucket-connector: principal does not have a parent resource id",
+			zap.String("principal_id", principal.Id.Resource),
+		)
+
+		return nil, fmt.Errorf("bitbucket-connector: principal does not have a parent resource id")
+	}
+	workspaceID := principal.ParentResourceId.Resource
+
+	if entitlement.Resource == nil {
+		l.Warn(
+			"bitbucket-connector: entitlement does not have a resource",
+			zap.String("entitlement_id", entitlement.Id),
+		)
+
+		return nil, fmt.Errorf("bitbucket-connector: entitlement does not have a resource")
+	}
+	repoID := entitlement.Resource.Id.Resource
+
+	permission, err := r.GetPermission(
+		ctx, principal, workspaceID, repoID)
 	if err != nil {
 		return nil, err
 	}
@@ -377,8 +397,8 @@ func (r *repositoryResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 	if principalIsUser {
 		err := r.client.DeleteRepoUserPermission(
 			ctx,
-			workspaceId,
-			repoId,
+			workspaceID,
+			repoID,
 			principal.Id.Resource,
 		)
 		if err != nil {
@@ -387,8 +407,8 @@ func (r *repositoryResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 	} else if principalIsGroup {
 		err := r.client.DeleteRepoGroupPermission(
 			ctx,
-			workspaceId,
-			repoId,
+			workspaceID,
+			repoID,
 			principal.Id.Resource,
 		)
 		if err != nil {

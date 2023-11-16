@@ -71,11 +71,14 @@ func (bb *Bitbucket) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error
 // Validate hits the Bitbucket API to validate that the configured credentials are valid and compatible.
 func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, error) {
 	// get the scope of used credentials
-	_, err := bb.client.GetCurrentUser(ctx)
+	user, err := bb.client.GetCurrentUser(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("bitbucket-connector: failed to get current user: %w", err)
 	}
-
+	err = bb.setScope(user)
+	if err != nil {
+		return nil, err
+	}
 	return nil, nil
 }
 
@@ -94,6 +97,19 @@ func New(ctx context.Context, workspaces []string, auth common.AuthOption) (*Bit
 		client:     bitbucket.NewClient(auth.Apply(), httpClient),
 		workspaces: workspaces,
 	}, nil
+}
+
+func (bb *Bitbucket) setScope(user *bitbucket.User) error {
+	// check the type of user then set the scope
+	switch user.Type {
+	case "user":
+		bb.client.SetupUserScope(user.Id)
+	case "team":
+		bb.client.SetupWorkspaceScope(user.Id)
+	default:
+		return fmt.Errorf("bitbucket-connector: unsupported user type: %s", user.Type)
+	}
+	return nil
 }
 
 func resolveAuth(auth common.AuthOption, httpClient *http.Client, ctx context.Context) (common.AuthOption, error) {

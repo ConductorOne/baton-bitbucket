@@ -1,7 +1,6 @@
 package connector
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
@@ -70,12 +69,4 @@ func splitFullName(fullName string) (string, string) {
 	parts := strings.Split(fullName, " ")
 
 	return parts[0], strings.Join(parts[1:], " ")
-}
-
-func splitRepositoryResourceID(resourceId *v2.ResourceId) (string, string, string, error) {
-	parts := strings.Split(resourceId.Resource, ":")
-	if len(parts) != 3 {
-		return "", "", "", fmt.Errorf("bitbucket-connector: invalid resource id: %s", resourceId.Resource)
-	}
-	return parts[0], parts[1], parts[2], nil
 }

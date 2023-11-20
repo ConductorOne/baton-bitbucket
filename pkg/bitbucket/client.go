@@ -905,7 +905,8 @@ func (c *Client) doRequest(
 	req.Header.Set("Authorization", c.auth)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-
+	fmt.Print(req.URL.String())
+	fmt.Printf("%+v\n", req)
 	rawResponse, err := c.httpClient.Do(req)
 	if err != nil {
 		return err

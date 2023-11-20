@@ -35,12 +35,10 @@ func repositoryResource(ctx context.Context, repository *bitbucket.Repository, p
 		"repository_full_name": repository.FullName,
 	}
 
-	composedId := fmt.Sprintf("%s:%s", parentResourceID.Resource, repository.Id)
-
 	resource, err := rs.NewGroupResource(
 		repository.FullName,
 		resourceTypeRepository,
-		composedId,
+		repository.Id,
 		[]rs.GroupTraitOption{
 			rs.WithGroupProfile(profile),
 		},
@@ -131,7 +129,7 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 		return nil, "", nil, err
 	}
 
-	workspaceId, _, repoId, err := splitRepositoryResourceID(resource.Id)
+	workspaceId, err := getWorkspaceIdFromParent(resource.ParentResourceId)
 	if err != nil {
 		return nil, "", nil, err
 	}
@@ -153,7 +151,7 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 		permissions, nextToken, err := r.client.GetRepositoryGroupPermissions(
 			ctx,
 			workspaceId,
-			repoId,
+			resource.Id.Resource,
 			bitbucket.PaginationVars{
 				Limit: ResourcesPageSize,
 				Page:  bag.PageToken(),
@@ -196,7 +194,7 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 		permissions, nextToken, err := r.client.GetRepositoryUserPermissions(
 			ctx,
 			workspaceId,
-			repoId,
+			resource.Id.Resource,
 			bitbucket.PaginationVars{
 				Limit: ResourcesPageSize,
 				Page:  bag.PageToken(),
@@ -266,6 +264,7 @@ func (r *repositoryResourceType) GetPermission(ctx context.Context, principal *v
 			repoId,
 			principal.Id.Resource,
 		)
+
 		if err != nil {
 			return nil, fmt.Errorf("bitbucket-connector: failed to get repository group permission: %w", err)
 		}
@@ -365,21 +364,15 @@ func (r *repositoryResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 		return nil, fmt.Errorf("bitbucket-connector: entitlement does not have a resource")
 	}
 
-	// parse the grant ID to get workspace and repository id
-	parts := strings.Split(entitlement.Resource.Id.Resource, ":")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("bitbucket-connector: invalid grant resource id: %s", entitlement.Resource.Id.Resource)
-	}
-
-	workspaceID := parts[0]
-	repoID := parts[1]
-
-	permission, err := r.GetPermission(
-		ctx, principal, workspaceID, repoID)
+	workspaceID, err := getWorkspaceIdFromParent(entitlement.Resource.ParentResourceId)
 	if err != nil {
 		return nil, err
 	}
-
+	repoID := entitlement.Resource.Id.Resource
+	permission, err := r.GetPermission(ctx, principal, workspaceID, repoID)
+	if err != nil {
+		return nil, err
+	}
 	// check if the permission is supported repository role
 	if !contains(entitlement.Slug, repositoryRoles) {
 		return nil, fmt.Errorf("bitbucket-connector: unsupported repository role: %s", permission.Value)
@@ -423,4 +416,17 @@ func repositoryBuilder(client *bitbucket.Client) *repositoryResourceType {
 		resourceType: resourceTypeRepository,
 		client:       client,
 	}
+}
+
+func getWorkspaceIdFromParent(parentResourceId *v2.ResourceId) (string, error) {
+	if parentResourceId == nil {
+		return "", fmt.Errorf("bitbucket-connector: parent resource id is nil")
+	}
+
+	parts := strings.Split(parentResourceId.Resource, ":")
+	if len(parts) != 2 {
+		return "", fmt.Errorf("bitbucket-connector: invalid parent resource id: %s", parentResourceId.Resource)
+	}
+
+	return parts[0], nil
 }

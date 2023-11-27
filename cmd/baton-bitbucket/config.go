@@ -15,7 +15,7 @@ type config struct {
 	Workspaces     []string `mapstructure:"workspaces"`
 	AccessToken    string   `mapstructure:"token"`
 	Username       string   `mapstructure:"username"`
-	Password       string   `mapstructure:"password"`
+	Password       string   `mapstructure:"app-password"`
 	ConsumerId     string   `mapstructure:"consumer-key"`
 	ConsumerSecret string   `mapstructure:"consumer-secret"`
 }
@@ -37,7 +37,7 @@ func validateConfig(ctx context.Context, cfg *config) error {
 func cmdFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().String("token", "", "Access token (workspace or project scoped) used to connect to the BitBucket API. ($BATON_TOKEN)")
 	cmd.PersistentFlags().String("username", "", "Username of administrator used to connect to the BitBucket API. ($BATON_USERNAME)")
-	cmd.PersistentFlags().String("password", "", "Application password used to connect to the BitBucket API. ($BATON_PASSWORD)")
+	cmd.PersistentFlags().String("app-password", "", "Application password used to connect to the BitBucket API. ($BATON_APP_PASSWORD)")
 	cmd.PersistentFlags().String("consumer-key", "", "OAuth consumer key used to connect to the BitBucket API via oauth. ($BATON_CONSUMER_ID)")
 	cmd.PersistentFlags().String("consumer-secret", "", "The consumer secret used to connect to the BitBucket API via oauth. ($BATON_CONSUMER_SECRET)")
 	cmd.PersistentFlags().StringSlice("workspaces", []string{}, "Limit syncing to specific workspaces by specifying workspace slugs. ($BATON_WORKSPACES)")

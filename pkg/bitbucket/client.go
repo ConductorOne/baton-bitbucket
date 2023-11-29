@@ -60,7 +60,6 @@ type ListResponse[T any] struct {
 }
 
 type errorResponse struct {
-	Type  string `json:"type"`
 	Error struct {
 		Message string `json:"message"`
 	} `json:"error"`

@@ -492,9 +492,9 @@ func (p *projectResourceType) Revoke(ctx context.Context, grant *v2.Grant) (anno
 	}
 
 	// warn if the principal already has a project permission
-	if permission.Value != roleNone {
+	if permission.Value == roleNone {
 		l.Warn(
-			"bitbucket-connector: principal already has a project permission",
+			"bitbucket-connector: principal already doesnt have this project permission",
 		)
 	}
 

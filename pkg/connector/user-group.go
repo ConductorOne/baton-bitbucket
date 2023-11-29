@@ -25,6 +25,14 @@ func (ug *userGroupResourceType) ResourceType(_ context.Context) *v2.ResourceTyp
 	return ug.resourceType
 }
 
+func WithWorkspaceId(id string) grant.GrantOption {
+	return func(g *v2.Grant) error {
+		g.Id = fmt.Sprintf("workspace:%s:%s", id, g.Id)
+
+		return nil
+	}
+}
+
 // Create a new connector resource for an Bitbucket UserGroup.
 func userGroupResource(ctx context.Context, userGroup *bitbucket.UserGroup, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
 	userIdsTotal := len(userGroup.Members)
@@ -131,6 +139,7 @@ func (ug *userGroupResourceType) Grants(ctx context.Context, resource *v2.Resour
 				resource,
 				memberEntitlement,
 				ur.Id,
+				WithWorkspaceId(resource.ParentResourceId.Resource),
 			),
 		)
 	}
@@ -181,22 +190,11 @@ func (ug *userGroupResourceType) Grant(ctx context.Context, principal *v2.Resour
 func (ug *userGroupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annotations.Annotations, error) {
 	l := ctxzap.Extract(ctx)
 
-	principal := grant.Principal
-	entitlement := grant.Entitlement
-
-	if principal.Id.ResourceType != resourceTypeUser.Id {
-		l.Warn(
-			"bitbucket-connector: only users can have group membership revoked",
-			zap.String("principal_id", principal.Id.String()),
-			zap.String("principal_type", principal.Id.ResourceType),
-		)
-
-		return nil, fmt.Errorf("bitbucket-connector: only users can have group membership revoked")
+	groupSlug, userId, workspaceId, err := getSlugUserAndWorkspace(grant.Id)
+	if err != nil {
+		return nil, fmt.Errorf("bitbucket-connector: failed to revoke could not parse grant id: %w", err)
 	}
 
-	workspaceId, groupSlug, userId := principal.ParentResourceId.Resource, entitlement.Resource.Id.Resource, principal.Id.Resource
-
-	// check if user is present in the group
 	members, err := ug.client.GetUserGroupMembers(ctx, workspaceId, groupSlug)
 	if err != nil {
 		return nil, fmt.Errorf("bitbucket-connector: failed to get user group members: %w", err)
@@ -205,8 +203,6 @@ func (ug *userGroupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 	if !isUserPresent(members, userId) {
 		l.Warn(
 			"bitbucket-connector: user is not a member of the group",
-			zap.String("principal_id", principal.Id.String()),
-			zap.String("principal_type", principal.Id.ResourceType),
 		)
 
 		return nil, fmt.Errorf("bitbucket-connector: user is not a member of the group")
@@ -226,4 +222,24 @@ func userGroupBuilder(client *bitbucket.Client) *userGroupResourceType {
 		resourceType: resourceTypeUserGroup,
 		client:       client,
 	}
+}
+
+func getSlugUserAndWorkspace(grantId string) (string, string, string, error) {
+	groupSlug, err := ExtractValueFromId(grantId, "user_group:")
+	if err != nil {
+		return "", "", "", err
+	}
+
+	userId, err := ExtractValueFromId(grantId, memberEntitlement+":user:")
+	if err != nil {
+		return "", "", "", err
+	}
+
+	workspaceId, err := ExtractValueFromId(grantId, "workspace:")
+	if err != nil {
+		return "", "", "", err
+	}
+
+	return groupSlug, userId, workspaceId, nil
+
 }

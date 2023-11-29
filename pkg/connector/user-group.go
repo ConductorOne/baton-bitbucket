@@ -153,7 +153,15 @@ func (ug *userGroupResourceType) Grant(ctx context.Context, principal *v2.Resour
 		return nil, fmt.Errorf("bitbucket-connector: only users can be granted group membership")
 	}
 
-	workspaceId, groupSlug, userId := principal.ParentResourceId.Resource, entitlement.Resource.Id.Resource, principal.Id.Resource
+	workspaceId, groupSlug, err := getSlugAndWorkspaceFromGroupId(entitlement.Id)
+	if err != nil {
+		l.Warn(
+			"bitbucket-connector: failed to get workspace id and group slug from entitlement id",
+			zap.String("entitlement_id", entitlement.Id),
+		)
+		return nil, err
+	}
+	userId := principal.Id.Resource
 
 	// check if user is already a member of the group
 	members, err := ug.client.GetUserGroupMembers(ctx, workspaceId, groupSlug)
@@ -196,26 +204,14 @@ func (ug *userGroupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 		return nil, fmt.Errorf("bitbucket-connector: only users can have group membership revoked")
 	}
 
-	if entitlement.Resource == nil {
+	workspaceId, groupSlug, err := getSlugAndWorkspaceFromGroupId(entitlement.Id)
+	if err != nil {
 		l.Warn(
-			"bitbucket-connector: entitlement does not have a resource",
+			"bitbucket-connector: failed to get workspace id and group slug from entitlement id",
 			zap.String("entitlement_id", entitlement.Id),
 		)
-
-		return nil, fmt.Errorf("bitbucket-connector: entitlement does not have a resource")
+		return nil, err
 	}
-
-	parts := strings.Split(entitlement.Id, ":")
-	if len(parts) != 4 {
-		l.Warn(
-			"bitbucket-connector: invalid resource id",
-			zap.String("resource_id", entitlement.Id),
-		)
-
-		return nil, fmt.Errorf("bitbucket-connector: invalid resource id")
-	}
-
-	workspaceId, groupSlug := parts[1], parts[2]
 	userId := principal.Id.Resource
 
 	members, err := ug.client.GetUserGroupMembers(ctx, workspaceId, groupSlug)
@@ -246,4 +242,14 @@ func userGroupBuilder(client *bitbucket.Client) *userGroupResourceType {
 		resourceType: resourceTypeUserGroup,
 		client:       client,
 	}
+}
+
+func getSlugAndWorkspaceFromGroupId(id string) (string, string, error) {
+	// entitlement id is in the format: user_group:<workspace_id>:<group_slug>:<memberEntitlement>
+	parts := strings.Split(id, ":")
+	if len(parts) != 4 {
+		return "", "", fmt.Errorf("bitbucket-connector: invalid resource id")
+	}
+
+	return parts[1], parts[2], nil
 }

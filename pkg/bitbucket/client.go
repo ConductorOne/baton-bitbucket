@@ -59,6 +59,13 @@ type ListResponse[T any] struct {
 	PaginationData
 }
 
+type errorResponse struct {
+	Type  string `json:"type"`
+	Error struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
 type UpdatePermissionPayload struct {
 	Permission string `json:"permission"`
 }
@@ -914,7 +921,17 @@ func (c *Client) doRequest(
 	defer rawResponse.Body.Close()
 
 	if rawResponse.StatusCode >= 300 {
-		return status.Error(codes.Code(rawResponse.StatusCode), "Request failed")
+		var errResp errorResponse
+
+		// Decode the JSON response body into the ErrorResponse struct
+		if err := json.NewDecoder(rawResponse.Body).Decode(&errResp); err != nil {
+			return status.Error(codes.Code(rawResponse.StatusCode), "Request failed with unknown error")
+		}
+
+		// Construct a more detailed error message
+		errMsg := fmt.Sprintf("Request failed with status %d: %s", rawResponse.StatusCode, errResp.Error.Message)
+
+		return status.Errorf(codes.Code(rawResponse.StatusCode), errMsg)
 	}
 
 	if method != http.MethodDelete {

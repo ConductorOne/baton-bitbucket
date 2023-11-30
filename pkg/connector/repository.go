@@ -41,7 +41,7 @@ func DecomposeRepositoryId(repositoryId string) (string, string, error) {
 
 	// Check if the project id is valid
 	projectId := strings.Join(parts[0:len(parts)-1], ":")
-	if _, _, err := DecomposeProjectId(projectId); err != nil {
+	if _, _, _, err := DecomposeProjectId(projectId); err != nil {
 		return "", "", errors.New("bitbucket-connector: invalid repository resource id, composed project id is invalid")
 	}
 
@@ -60,7 +60,7 @@ func repositoryResource(ctx context.Context, repository *bitbucket.Repository, p
 	resource, err := rs.NewGroupResource(
 		repository.FullName,
 		resourceTypeRepository,
-		ComposeProjectId(parentResourceID.Resource, repository.Id),
+		ComposeRepositoryId(parentResourceID.Resource, repository.Id),
 		[]rs.GroupTraitOption{
 			rs.WithGroupProfile(profile),
 		},
@@ -85,7 +85,7 @@ func (r *repositoryResourceType) List(ctx context.Context, parentId *v2.Resource
 		return nil, "", nil, err
 	}
 
-	workspaceId, projectId, err := DecomposeProjectId(parentId.Resource)
+	workspaceId, projectId, _, err := DecomposeProjectId(parentId.Resource)
 	if err != nil {
 		return nil, "", nil, err
 	}
@@ -155,7 +155,7 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 		return nil, "", nil, err
 	}
 
-	workspaceId, _, err := DecomposeProjectId(composedProjectId)
+	workspaceId, _, _, err := DecomposeProjectId(composedProjectId)
 	if err != nil {
 		return nil, "", nil, err
 	}
@@ -331,7 +331,7 @@ func (r *repositoryResourceType) Grant(ctx context.Context, principal *v2.Resour
 		return nil, err
 	}
 
-	workspaceId, _, err := DecomposeProjectId(composedProjectId)
+	workspaceId, _, _, err := DecomposeProjectId(composedProjectId)
 	if err != nil {
 		return nil, err
 	}
@@ -414,7 +414,7 @@ func (r *repositoryResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 		return nil, err
 	}
 
-	workspaceId, _, err := DecomposeProjectId(composedProjectId)
+	workspaceId, _, _, err := DecomposeProjectId(composedProjectId)
 	if err != nil {
 		return nil, err
 	}

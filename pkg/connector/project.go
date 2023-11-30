@@ -36,6 +36,20 @@ func (p *projectResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return p.resourceType
 }
 
+func ComposeProjectId(workspaceId string, projectId string) string {
+	return fmt.Sprintf("%s:%s", workspaceId, projectId)
+}
+
+func DecomposeProjectId(id string) (string, string, error) {
+	parts := strings.Split(id, ":")
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("bitbucket-connector: invalid project resource id")
+	}
+
+	// We need to split the project id into workspace and project id
+	return parts[0], parts[1], nil
+}
+
 // Create a new connector resource for an Bitbucket Project.
 func projectResource(ctx context.Context, project *bitbucket.Project, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
 	profile := map[string]interface{}{
@@ -44,12 +58,10 @@ func projectResource(ctx context.Context, project *bitbucket.Project, parentReso
 		"project_key":  project.Key,
 	}
 
-	composedId := fmt.Sprintf("%s:%s", parentResourceID.Resource, project.Id)
-
 	resource, err := rs.NewGroupResource(
 		project.Name,
 		resourceTypeProject,
-		composedId,
+		ComposeProjectId(parentResourceID.Resource, project.Id),
 		[]rs.GroupTraitOption{
 			rs.WithGroupProfile(profile),
 		},
@@ -148,12 +160,10 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 		return nil, "", nil, err
 	}
 
-	parts := strings.Split(resource.Id.Resource, ":")
-	if len(parts) != 2 {
-		return nil, "", nil, fmt.Errorf("bitbucket-connector: invalid project resource id: %s", resource.Id.Resource)
+	workspaceId, projectId, err := DecomposeProjectId(resource.Id.Resource)
+	if err != nil {
+		return nil, "", nil, err
 	}
-
-	workspaceId, projectId := parts[0], parts[1]
 
 	projectGroupTrait, err := rs.GetGroupTrait(resource)
 	if err != nil {
@@ -361,13 +371,15 @@ func (p *projectResourceType) Grant(ctx context.Context, principal *v2.Resource,
 		return nil, fmt.Errorf("bitbucket-connector: only users and groups can be granted project permissions")
 	}
 
-	// parse the project ID to get workspace and project ids
-	parts := strings.Split(entitlement.Resource.Id.Resource, ":")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("bitbucket-connector: invalid project resource id: %s", entitlement.Resource.Id.Resource)
+	projectResourceId, slug, err := ParseEntitlementID(entitlement.Id)
+	if err != nil {
+		return nil, err
 	}
 
-	workspaceId := parts[0]
+	workspaceId, _, err := DecomposeProjectId(projectResourceId.Resource)
+	if err != nil {
+		return nil, err
+	}
 
 	// parse the project profile to get project key
 	projectGroupTrait, err := rs.GetGroupTrait(entitlement.Resource)
@@ -380,8 +392,8 @@ func (p *projectResourceType) Grant(ctx context.Context, principal *v2.Resource,
 		return nil, fmt.Errorf("bitbucket-connector: project_key not found in project group profile")
 	}
 
-	// check if the entitlement is for project permission
-	if entitlement.Slug == repoEntitlement {
+	// check if the entitlement is for repository permission
+	if slug == repoEntitlement {
 		l.Warn(
 			"bitbucket-connector: granting repository memberships is not supported",
 			zap.String("entitlement_id", entitlement.Id),
@@ -391,8 +403,8 @@ func (p *projectResourceType) Grant(ctx context.Context, principal *v2.Resource,
 	}
 
 	// check if the permission is supported project role
-	if !contains(entitlement.Slug, projectPermissions) {
-		return nil, fmt.Errorf("bitbucket-connector: unsupported project role: %s", entitlement.Slug)
+	if !contains(slug, projectPermissions) {
+		return nil, fmt.Errorf("bitbucket-connector: unsupported project role: %s", slug)
 	}
 
 	permission, err := p.GetPermission(ctx, principal, workspaceId, projectKey)
@@ -414,7 +426,7 @@ func (p *projectResourceType) Grant(ctx context.Context, principal *v2.Resource,
 			workspaceId,
 			projectKey,
 			principal.Id.Resource,
-			entitlement.Slug,
+			slug,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("bitbucket-connector: failed to update project user permission: %w", err)
@@ -425,7 +437,7 @@ func (p *projectResourceType) Grant(ctx context.Context, principal *v2.Resource,
 			workspaceId,
 			projectKey,
 			principal.Id.Resource,
-			entitlement.Slug,
+			slug,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("bitbucket-connector: failed to update project group permission: %w", err)
@@ -453,13 +465,15 @@ func (p *projectResourceType) Revoke(ctx context.Context, grant *v2.Grant) (anno
 		return nil, fmt.Errorf("bitbucket-connector: only users and groups can have project permissions revoked")
 	}
 
-	// parse the project ID to get workspace and project ids
-	parts := strings.Split(entitlement.Resource.Id.Resource, ":")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("bitbucket-connector: invalid project resource id: %s", entitlement.Resource.Id.Resource)
+	projectResourceId, slug, err := ParseEntitlementID(entitlement.Id)
+	if err != nil {
+		return nil, err
 	}
 
-	workspaceId := parts[0]
+	workspaceId, _, err := DecomposeProjectId(projectResourceId.Resource)
+	if err != nil {
+		return nil, err
+	}
 
 	// parse the project profile to get project key
 	projectGroupTrait, err := rs.GetGroupTrait(entitlement.Resource)
@@ -472,7 +486,7 @@ func (p *projectResourceType) Revoke(ctx context.Context, grant *v2.Grant) (anno
 		return nil, fmt.Errorf("bitbucket-connector: project_key not found in project group profile")
 	}
 
-	if entitlement.Slug == repoEntitlement {
+	if slug == repoEntitlement {
 		l.Warn(
 			"bitbucket-connector: revoking repository memberships is not supported",
 			zap.String("entitlement_id", entitlement.Id),
@@ -487,7 +501,7 @@ func (p *projectResourceType) Revoke(ctx context.Context, grant *v2.Grant) (anno
 	}
 
 	// check if the permission is supported project role
-	if !contains(entitlement.Slug, projectPermissions) {
+	if !contains(slug, projectPermissions) {
 		return nil, fmt.Errorf("bitbucket-connector: unsupported project role: %s", permission.Value)
 	}
 

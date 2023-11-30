@@ -164,12 +164,12 @@ func (ug *userGroupResourceType) Grant(ctx context.Context, principal *v2.Resour
 		return nil, fmt.Errorf("bitbucket-connector: only users can be granted group membership")
 	}
 
-	groupResourceId, groupSlug, err := ParseEntitlementID(entitlement.Id)
+	groupResourceId, _, err := ParseEntitlementID(entitlement.Id)
 	if err != nil {
 		return nil, err
 	}
 
-	workspaceId, _, err := DecomposeGroupId(groupResourceId.Resource)
+	workspaceId, groupSlug, err := DecomposeGroupId(groupResourceId.Resource)
 	if err != nil {
 		return nil, err
 	}
@@ -217,12 +217,12 @@ func (ug *userGroupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 		return nil, fmt.Errorf("bitbucket-connector: only users can have group membership revoked")
 	}
 
-	groupResourceId, groupSlug, err := ParseEntitlementID(entitlement.Id)
+	groupResourceId, _, err := ParseEntitlementID(entitlement.Id)
 	if err != nil {
 		return nil, err
 	}
 
-	workspaceId, _, err := DecomposeGroupId(groupResourceId.Resource)
+	workspaceId, groupSlug, err := DecomposeGroupId(groupResourceId.Resource)
 	if err != nil {
 		return nil, err
 	}

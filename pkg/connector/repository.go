@@ -178,7 +178,8 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 
 			groupCopy := permission.Group
 
-			gr, err := userGroupResource(ctx, &groupCopy, resource.ParentResourceId)
+			gr, err := userGroupResource(ctx, &groupCopy, &v2.ResourceId{Resource: workspaceId})
+
 			if err != nil {
 				return nil, "", nil, err
 			}
@@ -221,7 +222,7 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 
 			memberCopy := permission.User
 
-			ur, err := userResource(ctx, &memberCopy, resource.ParentResourceId)
+			ur, err := userResource(ctx, &memberCopy, &v2.ResourceId{Resource: workspaceId})
 			if err != nil {
 				return nil, "", nil, err
 			}

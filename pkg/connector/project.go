@@ -202,7 +202,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 
 		for _, repo := range repos {
 			repoCopy := repo
-			rr, err := repositoryResource(ctx, &repoCopy, resource.ParentResourceId)
+			rr, err := repositoryResource(ctx, &repoCopy, &v2.ResourceId{Resource: resource.Id.Resource})
 			if err != nil {
 				return nil, "", nil, err
 			}
@@ -245,7 +245,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 
 			groupCopy := permission.Group
 
-			gr, err := userGroupResource(ctx, &groupCopy, resource.ParentResourceId)
+			gr, err := userGroupResource(ctx, &groupCopy, &v2.ResourceId{Resource: workspaceId})
 			if err != nil {
 				return nil, "", nil, err
 			}
@@ -288,7 +288,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 
 			userCopy := permission.User
 
-			ur, err := userResource(ctx, &userCopy, resource.ParentResourceId)
+			ur, err := userResource(ctx, &userCopy, &v2.ResourceId{Resource: workspaceId})
 			if err != nil {
 				return nil, "", nil, err
 			}

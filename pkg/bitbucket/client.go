@@ -924,13 +924,13 @@ func (c *Client) doRequest(
 
 		// Decode the JSON response body into the ErrorResponse struct
 		if err := json.NewDecoder(rawResponse.Body).Decode(&errResp); err != nil {
-			return status.Error(codes.Code(rawResponse.StatusCode), "Request failed with unknown error")
+			return status.Error(codes.Unknown, "Request failed with unknown error")
 		}
 
 		// Construct a more detailed error message
-		errMsg := fmt.Sprintf("Request failed with status %d: %s", rawResponse.StatusCode, errResp.Error.Message)
+		errMsg := fmt.Sprintf("Request failed with gRPC status %d: %s", rawResponse.StatusCode, errResp.Error.Message)
 
-		return status.Errorf(codes.Code(rawResponse.StatusCode), errMsg)
+		return status.Error(codes.Unknown, errMsg)
 	}
 
 	if method != http.MethodDelete {

@@ -284,11 +284,16 @@ func (r *repositoryResourceType) GetPermission(ctx context.Context, principal *v
 
 		return &userPermission.Permission, nil
 	} else if principal.Id.ResourceType == resourceTypeUserGroup.Id {
+		_, groupSlug, err := DecomposeGroupId(principal.Id.Resource)
+		if err != nil {
+			return nil, fmt.Errorf("bitbucket-connector: failed to grant repository permission: %w", err)
+		}
+
 		groupPermission, err := r.client.GetRepoGroupPermission(
 			ctx,
 			workspaceId,
 			repoId,
-			principal.Id.Resource,
+			groupSlug,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("bitbucket-connector: failed to get repository group permission: %w", err)
@@ -321,7 +326,12 @@ func (r *repositoryResourceType) Grant(ctx context.Context, principal *v2.Resour
 		return nil, err
 	}
 
-	workspaceId, repoId, err := DecomposeRepositoryId(repositoryResourceId.Resource)
+	composedProjectId, repoId, err := DecomposeRepositoryId(repositoryResourceId.Resource)
+	if err != nil {
+		return nil, err
+	}
+
+	workspaceId, _, err := DecomposeProjectId(composedProjectId)
 	if err != nil {
 		return nil, err
 	}
@@ -350,18 +360,23 @@ func (r *repositoryResourceType) Grant(ctx context.Context, principal *v2.Resour
 			workspaceId,
 			repoId,
 			principal.Id.Resource,
-			entitlement.Slug,
+			slug,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("bitbucket-connector: failed to update repository user permission: %w", err)
 		}
 	} else if principalIsGroup {
-		err := r.client.UpdateRepoGroupPermission(
+		_, groupSlug, err := DecomposeGroupId(principal.Id.Resource)
+		if err != nil {
+			return nil, fmt.Errorf("bitbucket-connector: failed to update repository permission: %w", err)
+		}
+
+		err = r.client.UpdateRepoGroupPermission(
 			ctx,
 			workspaceId,
 			repoId,
-			principal.Id.Resource,
-			entitlement.Slug,
+			groupSlug,
+			slug,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("bitbucket-connector: failed to update repository group permission: %w", err)
@@ -394,7 +409,12 @@ func (r *repositoryResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 		return nil, err
 	}
 
-	workspaceId, repoId, err := DecomposeRepositoryId(repositoryResourceId.Resource)
+	composedProjectId, repoId, err := DecomposeRepositoryId(repositoryResourceId.Resource)
+	if err != nil {
+		return nil, err
+	}
+
+	workspaceId, _, err := DecomposeProjectId(composedProjectId)
 	if err != nil {
 		return nil, err
 	}
@@ -429,11 +449,16 @@ func (r *repositoryResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 			return nil, fmt.Errorf("bitbucket-connector: failed to remove repository user permission: %w", err)
 		}
 	} else if principalIsGroup {
-		err := r.client.DeleteRepoGroupPermission(
+		_, groupSlug, err := DecomposeGroupId(principal.Id.Resource)
+		if err != nil {
+			return nil, fmt.Errorf("bitbucket-connector: failed to remove repository user permission: %w", err)
+		}
+
+		err = r.client.DeleteRepoGroupPermission(
 			ctx,
 			workspaceId,
 			repoId,
-			principal.Id.Resource,
+			groupSlug,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("bitbucket-connector: failed to remove repository group permission: %w", err)

@@ -491,7 +491,7 @@ func (p *projectResourceType) Revoke(ctx context.Context, grant *v2.Grant) (anno
 		return nil, fmt.Errorf("bitbucket-connector: unsupported project role: %s", permission.Value)
 	}
 
-	// warn if the principal already has a project permission
+	// warn if the principal already doesnt have this project permission
 	if permission.Value == roleNone {
 		l.Warn(
 			"bitbucket-connector: principal already doesnt have this project permission",

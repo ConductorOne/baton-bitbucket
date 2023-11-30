@@ -2,6 +2,7 @@ package connector
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -35,10 +36,12 @@ func repositoryResource(ctx context.Context, repository *bitbucket.Repository, p
 		"repository_full_name": repository.FullName,
 	}
 
+	composedId := fmt.Sprintf("%s:%s", parentResourceID.Resource, repository.Id)
+
 	resource, err := rs.NewGroupResource(
 		repository.FullName,
 		resourceTypeRepository,
-		repository.Id,
+		composedId,
 		[]rs.GroupTraitOption{
 			rs.WithGroupProfile(profile),
 		},
@@ -152,7 +155,7 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 		permissions, nextToken, err := r.client.GetRepositoryGroupPermissions(
 			ctx,
 			workspaceId,
-			resource.Id.Resource,
+			GetIdFromComposedId(resource),
 			bitbucket.PaginationVars{
 				Limit: ResourcesPageSize,
 				Page:  bag.PageToken(),
@@ -195,7 +198,7 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 		permissions, nextToken, err := r.client.GetRepositoryUserPermissions(
 			ctx,
 			workspaceId,
-			resource.Id.Resource,
+			GetIdFromComposedId(resource),
 			bitbucket.PaginationVars{
 				Limit: ResourcesPageSize,
 				Page:  bag.PageToken(),
@@ -291,7 +294,15 @@ func (r *repositoryResourceType) Grant(ctx context.Context, principal *v2.Resour
 		return nil, fmt.Errorf("bitbucket-connector: only users and groups can be granted repository permissions")
 	}
 
-	workspaceId, repoId := principal.ParentResourceId.Resource, entitlement.Resource.Id.Resource
+	workspaceId, repoId, err := getWorkspaceAndRepoFromResourceId(entitlement.Resource.Id.Resource)
+	if err != nil {
+		l.Warn(
+			"bitbucket-connector: invalid entitlement resource id",
+			zap.String("entitlement_id", entitlement.Id),
+		)
+		return nil, errors.New("bitbucket-connector: invalid entitlement resource id")
+	}
+
 	permission, err := r.GetPermission(ctx, principal, workspaceId, repoId)
 	if err != nil {
 		return nil, err
@@ -355,25 +366,14 @@ func (r *repositoryResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 		return nil, fmt.Errorf("bitbucket-connector: only users and groups can have repository permissions revoked")
 	}
 
-	if principal.ParentResourceId == nil {
+	workspaceID, repoID, err := getWorkspaceAndRepoFromResourceId(entitlement.Resource.Id.Resource)
+	if err != nil {
 		l.Warn(
-			"bitbucket-connector: principal does not have a parent resource id",
-			zap.String("principal_id", principal.Id.Resource),
-		)
-
-		return nil, fmt.Errorf("bitbucket-connector: principal does not have a parent resource id")
-	}
-	workspaceID := principal.ParentResourceId.Resource
-
-	if entitlement.Resource == nil {
-		l.Warn(
-			"bitbucket-connector: entitlement does not have a resource",
+			"bitbucket-connector: invalid entitlement resource id",
 			zap.String("entitlement_id", entitlement.Id),
 		)
-
-		return nil, fmt.Errorf("bitbucket-connector: entitlement does not have a resource")
+		return nil, errors.New("bitbucket-connector: invalid entitlement resource id")
 	}
-	repoID := entitlement.Resource.Id.Resource
 
 	permission, err := r.GetPermission(
 		ctx, principal, workspaceID, repoID)
@@ -386,10 +386,10 @@ func (r *repositoryResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 		return nil, fmt.Errorf("bitbucket-connector: unsupported repository role: %s", permission.Value)
 	}
 
-	// warn if the principal already has a repository permission
-	if permission.Value != roleNone {
+	// warn if the principal already doesnt have this repository permission
+	if permission.Value == roleNone {
 		l.Warn(
-			"bitbucket-connector: principal already has a repository permission",
+			"bitbucket-connector: principal already doesnt have this repository permission",
 		)
 	}
 
@@ -424,4 +424,14 @@ func repositoryBuilder(client *bitbucket.Client) *repositoryResourceType {
 		resourceType: resourceTypeRepository,
 		client:       client,
 	}
+}
+
+func getWorkspaceAndRepoFromResourceId(id string) (string, string, error) {
+	// resource id is in the format: <workspace_id>:<project_id>:<repository_id>
+	parts := strings.Split(id, ":")
+	if len(parts) != 3 {
+		return "", "", errors.New("bitbucket-connector: invalid entitlement resource id")
+	}
+
+	return parts[0], parts[2], nil
 }

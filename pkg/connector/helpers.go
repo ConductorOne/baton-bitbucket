@@ -1,7 +1,6 @@
 package connector
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
@@ -72,12 +71,7 @@ func splitFullName(fullName string) (string, string) {
 	return parts[0], strings.Join(parts[1:], " ")
 }
 
-func ExtractValueFromId(id string, prefix string) (string, error) {
-	parts := strings.SplitN(id, prefix, 2)
-	if len(parts) < 2 {
-		return "", fmt.Errorf("invalid id:%s is missing '%s' prefix", id, prefix)
-	}
-
-	// Extract the part after the prefix
-	return strings.SplitN(parts[1], ":", 2)[0], nil
+func GetIdFromComposedId(resource *v2.Resource) string {
+	parts := strings.Split(resource.Id.Resource, ":")
+	return parts[len(parts)-1]
 }

@@ -25,6 +25,19 @@ func (ug *userGroupResourceType) ResourceType(_ context.Context) *v2.ResourceTyp
 	return ug.resourceType
 }
 
+func ComposedGroupId(workspaceId, groupSlug string) string {
+	return fmt.Sprintf("%s:%s", workspaceId, groupSlug)
+}
+
+func DecomposeGroupId(id string) (string, string, error) {
+	parts := strings.Split(id, ":")
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("bitbucket-connector: invalid user group resource id")
+	}
+
+	return parts[0], parts[1], nil
+}
+
 // Create a new connector resource for an Bitbucket UserGroup.
 func userGroupResource(ctx context.Context, userGroup *bitbucket.UserGroup, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
 	userIdsTotal := len(userGroup.Members)
@@ -43,7 +56,7 @@ func userGroupResource(ctx context.Context, userGroup *bitbucket.UserGroup, pare
 	resource, err := rs.NewGroupResource(
 		userGroup.Name,
 		resourceTypeUserGroup,
-		userGroup.Slug,
+		ComposedGroupId(parentResourceID.Resource, userGroup.Slug),
 		[]rs.GroupTraitOption{rs.WithGroupProfile(profile)},
 		rs.WithParentResourceID(parentResourceID),
 	)
@@ -151,7 +164,17 @@ func (ug *userGroupResourceType) Grant(ctx context.Context, principal *v2.Resour
 		return nil, fmt.Errorf("bitbucket-connector: only users can be granted group membership")
 	}
 
-	workspaceId, groupSlug, userId := principal.ParentResourceId.Resource, entitlement.Resource.Id.Resource, principal.Id.Resource
+	groupResourceId, _, err := ParseEntitlementID(entitlement.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	workspaceId, groupSlug, err := DecomposeGroupId(groupResourceId.Resource)
+	if err != nil {
+		return nil, err
+	}
+
+	userId := principal.Id.Resource
 
 	// check if user is already a member of the group
 	members, err := ug.client.GetUserGroupMembers(ctx, workspaceId, groupSlug)
@@ -194,9 +217,18 @@ func (ug *userGroupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 		return nil, fmt.Errorf("bitbucket-connector: only users can have group membership revoked")
 	}
 
-	workspaceId, groupSlug, userId := principal.ParentResourceId.Resource, entitlement.Resource.Id.Resource, principal.Id.Resource
+	groupResourceId, _, err := ParseEntitlementID(entitlement.Id)
+	if err != nil {
+		return nil, err
+	}
 
-	// check if user is present in the group
+	workspaceId, groupSlug, err := DecomposeGroupId(groupResourceId.Resource)
+	if err != nil {
+		return nil, err
+	}
+
+	userId := principal.Id.Resource
+
 	members, err := ug.client.GetUserGroupMembers(ctx, workspaceId, groupSlug)
 	if err != nil {
 		return nil, fmt.Errorf("bitbucket-connector: failed to get user group members: %w", err)
@@ -211,7 +243,6 @@ func (ug *userGroupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 
 		return nil, fmt.Errorf("bitbucket-connector: user is not a member of the group")
 	}
-
 	// add user to the group
 	err = ug.client.RemoveUserFromGroup(ctx, workspaceId, groupSlug, userId)
 	if err != nil {

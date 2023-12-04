@@ -200,7 +200,6 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 			groupCopy := permission.Group
 
 			gr, err := userGroupResource(ctx, &groupCopy, &v2.ResourceId{Resource: workspaceId})
-
 			if err != nil {
 				return nil, "", nil, err
 			}

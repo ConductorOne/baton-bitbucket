@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/conductorone/baton-bitbucket/common"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -45,13 +44,11 @@ const (
 
 type Client struct {
 	httpClient *http.Client
-	auth       common.AuthOption
 	scope      Scope
 }
 
-func NewClient(auth common.AuthOption, httpClient *http.Client) *Client {
+func NewClient(httpClient *http.Client) *Client {
 	return &Client{
-		auth:       auth,
 		httpClient: httpClient,
 	}
 }
@@ -907,7 +904,6 @@ func (c *Client) doRequest(
 		req.URL.RawQuery = queryParams.Encode()
 	}
 
-	c.auth.Apply(req)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 

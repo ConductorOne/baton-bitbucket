@@ -51,10 +51,7 @@ func constructAuth(cfg *config) (common.AuthOption, error) {
 	}
 
 	if cfg.ConsumerId != "" {
-		return common.OAuth2Auth{
-			ClientId:     cfg.ConsumerId,
-			ClientSecret: cfg.ConsumerSecret,
-		}, nil
+		return common.NewOAuth2Auth(cfg.ConsumerId, cfg.ConsumerSecret), nil
 	}
 
 	return nil, fmt.Errorf("invalid config")

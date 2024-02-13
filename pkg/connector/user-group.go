@@ -40,17 +40,17 @@ func DecomposeGroupId(id string) (string, string, error) {
 
 // Create a new connector resource for an Bitbucket UserGroup.
 func userGroupResource(ctx context.Context, userGroup *bitbucket.UserGroup, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
-	userIdsTotal := len(userGroup.Members)
+	userIDsTotal := len(userGroup.Members)
 	profile := map[string]interface{}{
 		"userGroup_name":       userGroup.Name,
 		"userGroup_slug":       userGroup.Slug,
 		"userGroup_permission": userGroup.Permission,
 	}
 
-	if userIdsTotal > 0 {
-		userIds := mapUserIds(userGroup.Members)
+	if userIDsTotal > 0 {
+		userIDs := mapUserIDs(userGroup.Members)
 
-		profile["userGroup_members"] = strings.Join(userIds, ",")
+		profile["userGroup_members"] = strings.Join(userIDs, ",")
 	}
 
 	resource, err := rs.NewGroupResource(
@@ -117,16 +117,16 @@ func (ug *userGroupResourceType) Grants(ctx context.Context, resource *v2.Resour
 		return nil, "", nil, err
 	}
 
-	userIdsString, ok := rs.GetProfileStringValue(userGroupTrait.Profile, "userGroup_members")
+	userIDsString, ok := rs.GetProfileStringValue(userGroupTrait.Profile, "userGroup_members")
 	if !ok {
 		return nil, "", nil, nil
 	}
 
-	userIds := strings.Split(userIdsString, ",")
+	userIDs := strings.Split(userIDsString, ",")
 
 	// create membership grants
 	var rv []*v2.Grant
-	for _, id := range userIds {
+	for _, id := range userIDs {
 		user, err := ug.client.GetUser(ctx, id)
 		if err != nil {
 			return nil, "", nil, err

@@ -19,6 +19,7 @@ type User struct {
 	Type     string `json:"type"`
 	Name     string `json:"display_name"`
 	Username string `json:"username"`
+	Status   string `json:"account_status"`
 }
 
 type UserGroup struct {

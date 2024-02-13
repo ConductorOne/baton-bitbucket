@@ -36,7 +36,7 @@ func parsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, error
 	return b, nil
 }
 
-func mapUserIds(users []bitbucket.User) []string {
+func mapUserIDs(users []bitbucket.User) []string {
 	ids := make([]string, len(users))
 
 	for i, user := range users {

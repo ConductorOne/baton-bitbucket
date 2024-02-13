@@ -31,9 +31,14 @@ func userResource(ctx context.Context, user *bitbucket.User, parentResourceID *v
 		"user_id":    user.Id,
 	}
 
+	status := rs.WithStatus(v2.UserTrait_Status_STATUS_ENABLED)
+	if user.Status != "active" {
+		status = rs.WithStatus(v2.UserTrait_Status_STATUS_DISABLED)
+	}
+
 	userTraitOptions := []rs.UserTraitOption{
 		rs.WithUserProfile(profile),
-		rs.WithStatus(v2.UserTrait_Status_STATUS_ENABLED),
+		status,
 	}
 
 	resource, err := rs.NewUserResource(
@@ -81,9 +86,13 @@ func (u *userResourceType) List(ctx context.Context, parentId *v2.ResourceId, to
 
 	var rv []*v2.Resource
 	for _, user := range users {
-		userCopy := user
+		// retrieve a user to get a status
+		u, err := u.client.GetUser(ctx, user.Id)
+		if err != nil {
+			return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to get user: %w", err)
+		}
 
-		ur, err := userResource(ctx, &userCopy, parentId)
+		ur, err := userResource(ctx, u, parentId)
 		if err != nil {
 			return nil, "", nil, err
 		}

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/conductorone/baton-bitbucket/common"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -16,8 +17,6 @@ import (
 const (
 	V1BaseURL = "https://api.bitbucket.org/1.0/"
 	BaseURL   = "https://api.bitbucket.org/2.0/"
-
-	LoginBaseURL = "https://bitbucket.org/site/oauth2/access_token"
 
 	WorkspacesBaseURL          = BaseURL + "workspaces"
 	WorkspaceBaseURL           = WorkspacesBaseURL + "/%s"
@@ -46,8 +45,15 @@ const (
 
 type Client struct {
 	httpClient *http.Client
-	auth       string
+	auth       common.AuthOption
 	scope      Scope
+}
+
+func NewClient(auth common.AuthOption, httpClient *http.Client) *Client {
+	return &Client{
+		auth:       auth,
+		httpClient: httpClient,
+	}
 }
 
 type LoginResponse struct {
@@ -67,13 +73,6 @@ type errorResponse struct {
 
 type UpdatePermissionPayload struct {
 	Permission string `json:"permission"`
-}
-
-func NewClient(auth string, httpClient *http.Client) *Client {
-	return &Client{
-		auth:       auth,
-		httpClient: httpClient,
-	}
 }
 
 func (c *Client) SetupUserScope(userId string) {
@@ -908,7 +907,7 @@ func (c *Client) doRequest(
 		req.URL.RawQuery = queryParams.Encode()
 	}
 
-	req.Header.Set("Authorization", c.auth)
+	c.auth.Apply(req)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
@@ -940,37 +939,6 @@ func (c *Client) doRequest(
 	}
 
 	return nil
-}
-
-// Login exchanges the client id and secret for an access token with supported Client Credentials Grant.
-func Login(client *http.Client, ctx context.Context, idAndSecret string) (string, error) {
-	var loginResponse LoginResponse
-
-	body := bytes.NewBufferString("grant_type=client_credentials")
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, LoginBaseURL, body)
-	if err != nil {
-		return "", err
-	}
-
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Authorization", idAndSecret)
-
-	rawResponse, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-
-	defer rawResponse.Body.Close()
-
-	if rawResponse.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to login: %s", rawResponse.Status)
-	}
-
-	if err := json.NewDecoder(rawResponse.Body).Decode(&loginResponse); err != nil {
-		return "", err
-	}
-
-	return loginResponse.AccessToken, nil
 }
 
 func mapUsers(members []WorkspaceMember) []User {

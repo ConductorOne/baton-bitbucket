@@ -3,15 +3,12 @@ package connector
 import (
 	"context"
 	"fmt"
-	"net/http"
 
 	"github.com/conductorone/baton-bitbucket/common"
 	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
-	"github.com/conductorone/baton-sdk/pkg/uhttp"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 )
 
 var (
@@ -83,18 +80,13 @@ func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, err
 }
 
 func New(ctx context.Context, workspaces []string, auth common.AuthOption) (*Bitbucket, error) {
-	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
+	httpClient, err := auth.GetClient(ctx)
 	if err != nil {
-		return nil, err
-	}
-
-	auth, err = resolveAuth(auth, httpClient, ctx)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("bitbucket-connector: failed to get http client: %w", err)
 	}
 
 	return &Bitbucket{
-		client:     bitbucket.NewClient(auth.Apply(), httpClient),
+		client:     bitbucket.NewClient(auth, httpClient),
 		workspaces: workspaces,
 	}, nil
 }
@@ -110,19 +102,4 @@ func (bb *Bitbucket) setScope(user *bitbucket.User) error {
 		return fmt.Errorf("bitbucket-connector: unsupported user type: %s", user.Type)
 	}
 	return nil
-}
-
-func resolveAuth(auth common.AuthOption, httpClient *http.Client, ctx context.Context) (common.AuthOption, error) {
-	if oauth, ok := auth.(common.OAuth2Auth); ok {
-		accessToken, err := bitbucket.Login(httpClient, ctx, oauth.Apply())
-		if err != nil {
-			return nil, fmt.Errorf("bitbucket-connector: failed to login: %w", err)
-		}
-
-		return common.BearerAuth{
-			Token: accessToken,
-		}, nil
-	}
-
-	return auth, nil
 }

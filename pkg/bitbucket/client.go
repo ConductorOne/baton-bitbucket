@@ -110,8 +110,8 @@ func (c *Client) WorkspaceId() (string, error) {
 
 // If client have access to multiple workspaces, method `WorkspaceIds`
 // returns list of workspace ids otherwise it returns error.
-func (c *Client) WorkspaceIds(ctx context.Context) ([]string, error) {
-	workspaceIds := make([]string, 0)
+func (c *Client) WorkspaceIDs(ctx context.Context) ([]string, error) {
+	workspaceIDs := make([]string, 0)
 
 	if c.IsUserScoped() {
 		workspaces, err := c.GetAllWorkspaces(ctx)
@@ -120,17 +120,17 @@ func (c *Client) WorkspaceIds(ctx context.Context) ([]string, error) {
 		}
 
 		for _, workspace := range workspaces {
-			workspaceIds = append(workspaceIds, workspace.Id)
+			workspaceIDs = append(workspaceIDs, workspace.Id)
 		}
 
-		if len(workspaceIds) == 0 {
+		if len(workspaceIDs) == 0 {
 			return nil, status.Error(codes.NotFound, "no workspaces found")
 		}
 	} else {
 		return nil, status.Error(codes.InvalidArgument, "client is not user scoped")
 	}
 
-	return workspaceIds, nil
+	return workspaceIDs, nil
 }
 
 // GetWorkspaces lists all workspaces current user belongs to.

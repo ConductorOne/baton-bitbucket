@@ -9,8 +9,8 @@ import (
 	"github.com/conductorone/baton-bitbucket/pkg/connector"
 	"github.com/conductorone/baton-sdk/pkg/cli"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
-	"github.com/conductorone/baton-sdk/pkg/helpers"
 	"github.com/conductorone/baton-sdk/pkg/types"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
 )
@@ -44,17 +44,17 @@ func main() {
 	}
 }
 
-func constructAuth(cfg *config) (helpers.AuthCredentials, error) {
+func constructAuth(cfg *config) (uhttp.AuthCredentials, error) {
 	if cfg.AccessToken != "" {
-		return helpers.NewBearerAuth(cfg.AccessToken), nil
+		return uhttp.NewBearerAuth(cfg.AccessToken), nil
 	}
 
 	if cfg.Username != "" {
-		return helpers.NewBasicAuth(cfg.Username, cfg.Password), nil
+		return uhttp.NewBasicAuth(cfg.Username, cfg.Password), nil
 	}
 
 	if cfg.ConsumerId != "" {
-		return helpers.NewOAuth2ClientCredentials(
+		return uhttp.NewOAuth2ClientCredentials(
 			cfg.ConsumerId,
 			cfg.ConsumerSecret,
 			LoginURL,

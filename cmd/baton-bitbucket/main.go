@@ -3,18 +3,26 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 
-	"github.com/conductorone/baton-bitbucket/common"
 	"github.com/conductorone/baton-bitbucket/pkg/connector"
 	"github.com/conductorone/baton-sdk/pkg/cli"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/types"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
 )
 
-var version = "dev"
+var (
+	version  = "dev"
+	LoginURL = &url.URL{
+		Scheme: "https",
+		Host:   "bitbucket.org",
+		Path:   "/site/oauth2/access_token",
+	}
+)
 
 func main() {
 	ctx := context.Background()
@@ -36,22 +44,22 @@ func main() {
 	}
 }
 
-func constructAuth(cfg *config) (common.AuthOption, error) {
+func constructAuth(cfg *config) (uhttp.AuthCredentials, error) {
 	if cfg.AccessToken != "" {
-		return common.BearerAuth{
-			Token: cfg.AccessToken,
-		}, nil
+		return uhttp.NewBearerAuth(cfg.AccessToken), nil
 	}
 
 	if cfg.Username != "" {
-		return common.BasicAuth{
-			Username: cfg.Username,
-			Password: cfg.Password,
-		}, nil
+		return uhttp.NewBasicAuth(cfg.Username, cfg.Password), nil
 	}
 
 	if cfg.ConsumerId != "" {
-		return common.NewOAuth2Auth(cfg.ConsumerId, cfg.ConsumerSecret), nil
+		return uhttp.NewOAuth2ClientCredentials(
+			cfg.ConsumerId,
+			cfg.ConsumerSecret,
+			LoginURL,
+			nil,
+		), nil
 	}
 
 	return nil, fmt.Errorf("invalid config")

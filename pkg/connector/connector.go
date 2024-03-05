@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/conductorone/baton-bitbucket/common"
 	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 )
 
 var (
@@ -79,14 +79,14 @@ func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, err
 	return nil, nil
 }
 
-func New(ctx context.Context, workspaces []string, auth common.AuthOption) (*Bitbucket, error) {
+func New(ctx context.Context, workspaces []string, auth uhttp.AuthCredentials) (*Bitbucket, error) {
 	httpClient, err := auth.GetClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("bitbucket-connector: failed to get http client: %w", err)
 	}
 
 	return &Bitbucket{
-		client:     bitbucket.NewClient(auth, httpClient),
+		client:     bitbucket.NewClient(httpClient),
 		workspaces: workspaces,
 	}, nil
 }

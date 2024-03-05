@@ -1,15 +1,13 @@
 package bitbucket
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 
-	"github.com/conductorone/baton-bitbucket/common"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -44,15 +42,15 @@ const (
 )
 
 type Client struct {
-	httpClient *http.Client
-	auth       common.AuthOption
-	scope      Scope
+	wrapper *uhttp.BaseHttpClient
+	scope   Scope
 }
 
-func NewClient(auth common.AuthOption, httpClient *http.Client) *Client {
+func NewClient(httpClient *http.Client) *Client {
+	wrapper := uhttp.NewBaseHttpClient(httpClient)
+
 	return &Client{
-		auth:       auth,
-		httpClient: httpClient,
+		wrapper: wrapper,
 	}
 }
 
@@ -134,10 +132,15 @@ func (c *Client) WorkspaceIDs(ctx context.Context) ([]string, error) {
 
 // GetWorkspaces lists all workspaces current user belongs to.
 func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars PaginationVars) ([]Workspace, string, error) {
+	urlAddress, err := url.Parse(WorkspacesBaseURL)
+	if err != nil {
+		return nil, "", err
+	}
+
 	var workspacesResponse ListResponse[Workspace]
-	err := c.get(
+	err = c.get(
 		ctx,
-		WorkspacesBaseURL,
+		urlAddress,
 		&workspacesResponse,
 		[]QueryParam{
 			&getWorkspacesVars,
@@ -182,11 +185,15 @@ func (c *Client) GetAllWorkspaces(ctx context.Context) ([]Workspace, error) {
 // GetWorkspace get specific workspace based on provided id.
 func (c *Client) GetWorkspace(ctx context.Context, workspaceId string) (*Workspace, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
+	urlAddress, err := url.Parse(fmt.Sprintf(WorkspaceBaseURL, encodedWorkspaceId))
+	if err != nil {
+		return nil, err
+	}
 
 	var workspaceResponse Workspace
-	err := c.get(
+	err = c.get(
 		ctx,
-		fmt.Sprintf(WorkspaceBaseURL, encodedWorkspaceId),
+		urlAddress,
 		&workspaceResponse,
 		[]QueryParam{
 			prepareFilters(""),
@@ -203,11 +210,15 @@ func (c *Client) GetWorkspace(ctx context.Context, workspaceId string) (*Workspa
 // GetWorkspaceMembers lists all users that belong under specified workspace.
 func (c *Client) GetWorkspaceMembers(ctx context.Context, workspaceId string, getWorkspacesVars PaginationVars) ([]User, string, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
+	urlAddress, err := url.Parse(fmt.Sprintf(WorkspaceMembersBaseURL, encodedWorkspaceId))
+	if err != nil {
+		return nil, "", err
+	}
 
 	var workspaceMembersResponse ListResponse[WorkspaceMember]
-	err := c.get(
+	err = c.get(
 		ctx,
-		fmt.Sprintf(WorkspaceMembersBaseURL, encodedWorkspaceId),
+		urlAddress,
 		&workspaceMembersResponse,
 		[]QueryParam{
 			&getWorkspacesVars,
@@ -227,11 +238,15 @@ func (c *Client) GetWorkspaceMembers(ctx context.Context, workspaceId string, ge
 // GetWorkspaceUserGroups lists all user groups that belong under specified workspace (This method is supported only for v1 API).
 func (c *Client) GetWorkspaceUserGroups(ctx context.Context, workspaceId string) ([]UserGroup, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
+	urlAddress, err := url.Parse(fmt.Sprintf(WorkspaceUserGroupsBaseURL, encodedWorkspaceId))
+	if err != nil {
+		return nil, err
+	}
 
 	var workspaceUserGroupsResponse []UserGroup
-	err := c.get(
+	err = c.get(
 		ctx,
-		fmt.Sprintf(WorkspaceUserGroupsBaseURL, encodedWorkspaceId),
+		urlAddress,
 		&workspaceUserGroupsResponse,
 		nil,
 	)
@@ -246,11 +261,15 @@ func (c *Client) GetWorkspaceUserGroups(ctx context.Context, workspaceId string)
 // GetUserGroupMembers lists all members that belong in specified user group (This method is supported only for v1 API).
 func (c *Client) GetUserGroupMembers(ctx context.Context, workspaceId string, groupSlug string) ([]User, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
+	urlAddress, err := url.Parse(fmt.Sprintf(UserGroupMembersBaseURL, encodedWorkspaceId, groupSlug))
+	if err != nil {
+		return nil, err
+	}
 
 	var userGroupMembersResponse []User
-	err := c.get(
+	err = c.get(
 		ctx,
-		fmt.Sprintf(UserGroupMembersBaseURL, encodedWorkspaceId, groupSlug),
+		urlAddress,
 		&userGroupMembersResponse,
 		nil,
 	)
@@ -266,15 +285,18 @@ func (c *Client) GetUserGroupMembers(ctx context.Context, workspaceId string, gr
 func (c *Client) AddUserToGroup(ctx context.Context, workspaceId string, groupSlug string, userId string) error {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
 	encodedUserId := url.PathEscape(userId)
+	urlAddress, err := url.Parse(fmt.Sprintf(GroupMemberModifyBaseURL, encodedWorkspaceId, groupSlug, encodedUserId))
+	if err != nil {
+		return err
+	}
 
-	err := c.put(
+	err = c.put(
 		ctx,
-		fmt.Sprintf(GroupMemberModifyBaseURL, encodedWorkspaceId, groupSlug, encodedUserId),
+		urlAddress,
 		struct{}{}, // required empty body
 		nil,
 		nil,
 	)
-
 	if err != nil {
 		return err
 	}
@@ -286,14 +308,12 @@ func (c *Client) AddUserToGroup(ctx context.Context, workspaceId string, groupSl
 func (c *Client) RemoveUserFromGroup(ctx context.Context, workspaceId string, groupSlug string, userId string) error {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
 	encodedUserId := url.PathEscape(userId)
+	urlAddress, err := url.Parse(fmt.Sprintf(GroupMemberModifyBaseURL, encodedWorkspaceId, groupSlug, encodedUserId))
+	if err != nil {
+		return err
+	}
 
-	err := c.delete(
-		ctx,
-		fmt.Sprintf(GroupMemberModifyBaseURL, encodedWorkspaceId, groupSlug, encodedUserId),
-		nil,
-		nil,
-	)
-
+	err = c.delete(ctx, urlAddress)
 	if err != nil {
 		return err
 	}
@@ -303,10 +323,15 @@ func (c *Client) RemoveUserFromGroup(ctx context.Context, workspaceId string, gr
 
 // GetCurrentUser get information about currently logged in user or team.
 func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
+	urlAddress, err := url.Parse(CurrentUserBaseURL)
+	if err != nil {
+		return nil, err
+	}
+
 	var userResponse User
-	err := c.get(
+	err = c.get(
 		ctx,
-		CurrentUserBaseURL,
+		urlAddress,
 		&userResponse,
 		[]QueryParam{
 			prepareFilters(""),
@@ -323,11 +348,15 @@ func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
 // GetUser get detail information about specified user.
 func (c *Client) GetUser(ctx context.Context, userId string) (*User, error) {
 	encodedUserId := url.PathEscape(userId)
+	urlAddress, err := url.Parse(fmt.Sprintf(UserBaseURL, encodedUserId))
+	if err != nil {
+		return nil, err
+	}
 
 	var userResponse User
-	err := c.get(
+	err = c.get(
 		ctx,
-		fmt.Sprintf(UserBaseURL, encodedUserId),
+		urlAddress,
 		&userResponse,
 		[]QueryParam{
 			prepareFilters(""),
@@ -344,11 +373,15 @@ func (c *Client) GetUser(ctx context.Context, userId string) (*User, error) {
 // GetWorkspaceProjects lists all projects that belong under specified workspace.
 func (c *Client) GetWorkspaceProjects(ctx context.Context, workspaceId string, getWorkspaceProjectsVars PaginationVars) ([]Project, string, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
+	urlAddress, err := url.Parse(fmt.Sprintf(WorkspaceProjectsBaseURL, encodedWorkspaceId))
+	if err != nil {
+		return nil, "", err
+	}
 
 	var workspaceProjectsResponse ListResponse[Project]
-	err := c.get(
+	err = c.get(
 		ctx,
-		fmt.Sprintf(WorkspaceProjectsBaseURL, encodedWorkspaceId),
+		urlAddress,
 		&workspaceProjectsResponse,
 		[]QueryParam{
 			&getWorkspaceProjectsVars,
@@ -393,11 +426,15 @@ func (c *Client) GetAllWorkspaceProjects(ctx context.Context, workspaceId string
 // GetProjectRepos lists all repositories that belong under specified project (which belongs under specified workspace).
 func (c *Client) GetProjectRepos(ctx context.Context, workspaceId string, projectId string, getProjectReposVars PaginationVars) ([]Repository, string, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
+	urlAddress, err := url.Parse(fmt.Sprintf(ProjectRepositoriesBaseURL, encodedWorkspaceId))
+	if err != nil {
+		return nil, "", err
+	}
 
 	var projectRepositoriesResponse ListResponse[Repository]
-	err := c.get(
+	err = c.get(
 		ctx,
-		fmt.Sprintf(ProjectRepositoriesBaseURL, encodedWorkspaceId),
+		urlAddress,
 		&projectRepositoriesResponse,
 		[]QueryParam{
 			&getProjectReposVars,
@@ -446,11 +483,15 @@ func (c *Client) GetAllProjectRepos(ctx context.Context, workspaceId string, pro
 // GetProjectGroupPermissions lists all group permissions that belong under specified project.
 func (c *Client) GetProjectGroupPermissions(ctx context.Context, workspaceId string, projectKey string, getPermissionsVars PaginationVars) ([]GroupPermission, string, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
+	urlAddress, err := url.Parse(fmt.Sprintf(ProjectGroupPermissionsBaseURL, encodedWorkspaceId, projectKey))
+	if err != nil {
+		return nil, "", err
+	}
 
 	var projectGroupPermissionsResponse ListResponse[GroupPermission]
-	err := c.get(
+	err = c.get(
 		ctx,
-		fmt.Sprintf(ProjectGroupPermissionsBaseURL, encodedWorkspaceId, projectKey),
+		urlAddress,
 		&projectGroupPermissionsResponse,
 		[]QueryParam{
 			&getPermissionsVars,
@@ -473,11 +514,15 @@ func (c *Client) GetProjectGroupPermission(
 	groupSlug string,
 ) (*GroupPermission, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
+	urlAddress, err := url.Parse(fmt.Sprintf(ProjectGroupPermissionBaseURL, encodedWorkspaceId, projectKey, groupSlug))
+	if err != nil {
+		return nil, err
+	}
 
 	var projectGroupPermissionsResponse GroupPermission
-	err := c.get(
+	err = c.get(
 		ctx,
-		fmt.Sprintf(ProjectGroupPermissionBaseURL, encodedWorkspaceId, projectKey, groupSlug),
+		urlAddress,
 		&projectGroupPermissionsResponse,
 		[]QueryParam{
 			prepareFilters("", "-*.*.workspace", "-*.*.owner"),
@@ -500,10 +545,14 @@ func (c *Client) UpdateProjectGroupPermission(
 	permission string,
 ) error {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
+	urlAddress, err := url.Parse(fmt.Sprintf(ProjectGroupPermissionBaseURL, encodedWorkspaceId, projectKey, groupSlug))
+	if err != nil {
+		return err
+	}
 
-	err := c.put(
+	err = c.put(
 		ctx,
-		fmt.Sprintf(ProjectGroupPermissionBaseURL, encodedWorkspaceId, projectKey, groupSlug),
+		urlAddress,
 		UpdatePermissionPayload{
 			Permission: permission,
 		},
@@ -526,14 +575,12 @@ func (c *Client) DeleteProjectGroupPermission(
 	groupSlug string,
 ) error {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
+	urlAddress, err := url.Parse(fmt.Sprintf(ProjectGroupPermissionBaseURL, encodedWorkspaceId, projectKey, groupSlug))
+	if err != nil {
+		return err
+	}
 
-	err := c.delete(
-		ctx,
-		fmt.Sprintf(ProjectGroupPermissionBaseURL, encodedWorkspaceId, projectKey, groupSlug),
-		nil,
-		nil,
-	)
-
+	err = c.delete(ctx, urlAddress)
 	if err != nil {
 		return err
 	}
@@ -544,11 +591,15 @@ func (c *Client) DeleteProjectGroupPermission(
 // GetProjectUserPermissions lists all user permissions that belong under specified project.
 func (c *Client) GetProjectUserPermissions(ctx context.Context, workspaceId string, projectKey string, getPermissionsVars PaginationVars) ([]UserPermission, string, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
+	urlAddress, err := url.Parse(fmt.Sprintf(ProjectUserPermissionsBaseURL, encodedWorkspaceId, projectKey))
+	if err != nil {
+		return nil, "", err
+	}
 
 	var projectUserPermissionsResponse ListResponse[UserPermission]
-	err := c.get(
+	err = c.get(
 		ctx,
-		fmt.Sprintf(ProjectUserPermissionsBaseURL, encodedWorkspaceId, projectKey),
+		urlAddress,
 		&projectUserPermissionsResponse,
 		[]QueryParam{
 			&getPermissionsVars,
@@ -572,11 +623,15 @@ func (c *Client) GetProjectUserPermission(
 ) (*UserPermission, error) {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
 	encodedUserId := url.PathEscape(userId)
+	urlAddress, err := url.Parse(fmt.Sprintf(ProjectUserPermissionBaseURL, encodedWorkspaceId, projectKey, encodedUserId))
+	if err != nil {
+		return nil, err
+	}
 
 	var projectUserPermissionsResponse UserPermission
-	err := c.get(
+	err = c.get(
 		ctx,
-		fmt.Sprintf(ProjectUserPermissionBaseURL, encodedWorkspaceId, projectKey, encodedUserId),
+		urlAddress,
 		&projectUserPermissionsResponse,
 		[]QueryParam{
 			prepareFilters(""),
@@ -600,10 +655,14 @@ func (c *Client) UpdateProjectUserPermission(
 ) error {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
 	encodedUserId := url.PathEscape(userId)
+	urlAddress, err := url.Parse(fmt.Sprintf(ProjectUserPermissionBaseURL, encodedWorkspaceId, projectKey, encodedUserId))
+	if err != nil {
+		return err
+	}
 
-	err := c.put(
+	err = c.put(
 		ctx,
-		fmt.Sprintf(ProjectUserPermissionBaseURL, encodedWorkspaceId, projectKey, encodedUserId),
+		urlAddress,
 		UpdatePermissionPayload{
 			Permission: permission,
 		},
@@ -627,14 +686,12 @@ func (c *Client) DeleteProjectUserPermission(
 ) error {
 	encodedWorkspaceId := url.PathEscape(workspaceId)
 	encodedUserId := url.PathEscape(userId)
+	urlAddress, err := url.Parse(fmt.Sprintf(ProjectUserPermissionBaseURL, encodedWorkspaceId, projectKey, encodedUserId))
+	if err != nil {
+		return err
+	}
 
-	err := c.delete(
-		ctx,
-		fmt.Sprintf(ProjectUserPermissionBaseURL, encodedWorkspaceId, projectKey, encodedUserId),
-		nil,
-		nil,
-	)
-
+	err = c.delete(ctx, urlAddress)
 	if err != nil {
 		return err
 	}
@@ -645,11 +702,15 @@ func (c *Client) DeleteProjectUserPermission(
 // GetRepositoryGroupPermissions lists all group permissions that belong under specified repository.
 func (c *Client) GetRepositoryGroupPermissions(ctx context.Context, workspaceId string, repoId string, getPermissionsVars PaginationVars) ([]GroupPermission, string, error) {
 	encodedWorkspaceId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(repoId)
+	urlAddress, err := url.Parse(fmt.Sprintf(RepoGroupPermissionsBaseURL, encodedWorkspaceId, encodedRepoId))
+	if err != nil {
+		return nil, "", err
+	}
 
 	var repositoryGroupPermissionsResponse ListResponse[GroupPermission]
-	err := c.get(
+	err = c.get(
 		ctx,
-		fmt.Sprintf(RepoGroupPermissionsBaseURL, encodedWorkspaceId, encodedRepoId),
+		urlAddress,
 		&repositoryGroupPermissionsResponse,
 		[]QueryParam{
 			&getPermissionsVars,
@@ -672,11 +733,15 @@ func (c *Client) GetRepoGroupPermission(
 	groupSlug string,
 ) (*GroupPermission, error) {
 	encodedWorkspaceId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(repoId)
+	urlAddress, err := url.Parse(fmt.Sprintf(RepoGroupPermissionBaseURL, encodedWorkspaceId, encodedRepoId, groupSlug))
+	if err != nil {
+		return nil, err
+	}
 
 	var repoGroupPermissionsResponse GroupPermission
-	err := c.get(
+	err = c.get(
 		ctx,
-		fmt.Sprintf(RepoGroupPermissionBaseURL, encodedWorkspaceId, encodedRepoId, groupSlug),
+		urlAddress,
 		&repoGroupPermissionsResponse,
 		[]QueryParam{
 			prepareFilters("", "-*.*.workspace", "-*.*.owner"),
@@ -699,10 +764,14 @@ func (c *Client) UpdateRepoGroupPermission(
 	permission string,
 ) error {
 	encodedWorkspaceId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(repoId)
+	urlAddress, err := url.Parse(fmt.Sprintf(RepoGroupPermissionBaseURL, encodedWorkspaceId, encodedRepoId, groupSlug))
+	if err != nil {
+		return err
+	}
 
-	err := c.put(
+	err = c.put(
 		ctx,
-		fmt.Sprintf(RepoGroupPermissionBaseURL, encodedWorkspaceId, encodedRepoId, groupSlug),
+		urlAddress,
 		UpdatePermissionPayload{
 			Permission: permission,
 		},
@@ -725,13 +794,12 @@ func (c *Client) DeleteRepoGroupPermission(
 	groupSlug string,
 ) error {
 	encodedWorkspaceId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(repoId)
+	urlAddress, err := url.Parse(fmt.Sprintf(RepoGroupPermissionBaseURL, encodedWorkspaceId, encodedRepoId, groupSlug))
+	if err != nil {
+		return err
+	}
 
-	err := c.delete(
-		ctx,
-		fmt.Sprintf(RepoGroupPermissionBaseURL, encodedWorkspaceId, encodedRepoId, groupSlug),
-		nil,
-		nil,
-	)
+	err = c.delete(ctx, urlAddress)
 
 	if err != nil {
 		return err
@@ -743,11 +811,15 @@ func (c *Client) DeleteRepoGroupPermission(
 // GetRepositoryUserPermissions lists all user permissions that belong under specified repository.
 func (c *Client) GetRepositoryUserPermissions(ctx context.Context, workspaceId string, repoId string, getPermissionsVars PaginationVars) ([]UserPermission, string, error) {
 	encodedWorkspaceId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(repoId)
+	urlAddress, err := url.Parse(fmt.Sprintf(RepoUserPermissionsBaseURL, encodedWorkspaceId, encodedRepoId))
+	if err != nil {
+		return nil, "", err
+	}
 
 	var repositoryUserPermissionsResponse ListResponse[UserPermission]
-	err := c.get(
+	err = c.get(
 		ctx,
-		fmt.Sprintf(RepoUserPermissionsBaseURL, encodedWorkspaceId, encodedRepoId),
+		urlAddress,
 		&repositoryUserPermissionsResponse,
 		[]QueryParam{
 			&getPermissionsVars,
@@ -770,11 +842,15 @@ func (c *Client) GetRepoUserPermission(
 	userId string,
 ) (*UserPermission, error) {
 	encodedWorkspaceId, encodedUserId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(userId), url.PathEscape(repoId)
+	urlAddress, err := url.Parse(fmt.Sprintf(RepoUserPermissionBaseURL, encodedWorkspaceId, encodedRepoId, encodedUserId))
+	if err != nil {
+		return nil, err
+	}
 
 	var repoUserPermissionsResponse UserPermission
-	err := c.get(
+	err = c.get(
 		ctx,
-		fmt.Sprintf(RepoUserPermissionBaseURL, encodedWorkspaceId, encodedRepoId, encodedUserId),
+		urlAddress,
 		&repoUserPermissionsResponse,
 		[]QueryParam{
 			prepareFilters(""),
@@ -797,10 +873,14 @@ func (c *Client) UpdateRepoUserPermission(
 	permission string,
 ) error {
 	encodedWorkspaceId, encodedUserId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(userId), url.PathEscape(repoId)
+	urlAddress, err := url.Parse(fmt.Sprintf(RepoUserPermissionBaseURL, encodedWorkspaceId, encodedRepoId, encodedUserId))
+	if err != nil {
+		return err
+	}
 
-	err := c.put(
+	err = c.put(
 		ctx,
-		fmt.Sprintf(RepoUserPermissionBaseURL, encodedWorkspaceId, encodedRepoId, encodedUserId),
+		urlAddress,
 		UpdatePermissionPayload{
 			Permission: permission,
 		},
@@ -823,14 +903,12 @@ func (c *Client) DeleteRepoUserPermission(
 	userId string,
 ) error {
 	encodedWorkspaceId, encodedUserId, encodedRepoId := url.PathEscape(workspaceId), url.PathEscape(userId), url.PathEscape(repoId)
+	url, err := url.Parse(fmt.Sprintf(RepoUserPermissionBaseURL, encodedWorkspaceId, encodedRepoId, encodedUserId))
+	if err != nil {
+		return err
+	}
 
-	err := c.delete(
-		ctx,
-		fmt.Sprintf(RepoUserPermissionBaseURL, encodedWorkspaceId, encodedRepoId, encodedUserId),
-		nil,
-		nil,
-	)
-
+	err = c.delete(ctx, url)
 	if err != nil {
 		return err
 	}
@@ -838,64 +916,92 @@ func (c *Client) DeleteRepoUserPermission(
 	return nil
 }
 
-func handlePagination[T any](resp ListResponse[T]) ([]T, string, error) {
-	if resp.PaginationData.Next != "" {
-		return resp.Values, parsePageFromURL(resp.PaginationData.Next), nil
-	}
-
-	return resp.Values, "", nil
-}
-
-func (c *Client) get(
-	ctx context.Context,
-	urlAddress string,
-	resourceResponse interface{},
-	paramOptions []QueryParam,
-) error {
-	return c.doRequest(ctx, urlAddress, http.MethodGet, nil, resourceResponse, paramOptions)
-}
-
-func (c *Client) put(
-	ctx context.Context,
-	urlAddress string,
-	data interface{},
-	resourceResponse interface{},
-	paramOptions []QueryParam,
-) error {
-	return c.doRequest(ctx, urlAddress, http.MethodPut, data, resourceResponse, paramOptions)
-}
-
-func (c *Client) delete(
-	ctx context.Context,
-	urlAddress string,
-	resourceResponse interface{},
-	paramOptions []QueryParam,
-) error {
-	return c.doRequest(ctx, urlAddress, http.MethodDelete, nil, resourceResponse, paramOptions)
-}
-
-func (c *Client) doRequest(
-	ctx context.Context,
-	urlAddress string,
-	method string,
-	data interface{},
-	resourceResponse interface{},
-	paramOptions []QueryParam,
-) error {
-	var body io.Reader
-
-	if data != nil {
-		jsonBody, err := json.Marshal(data)
-		if err != nil {
-			return err
-		}
-
-		body = bytes.NewBuffer(jsonBody)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, urlAddress, body)
+func (c *Client) delete(ctx context.Context, urlAddress *url.URL) error {
+	req, err := c.createRequest(ctx, urlAddress, http.MethodDelete, nil, nil, nil)
 	if err != nil {
 		return err
+	}
+
+	var errRes errorResponse
+	r, err := c.wrapper.Do(req, WithErrorResponse(errRes))
+	if err != nil {
+		return err
+	}
+
+	defer r.Body.Close()
+
+	return nil
+}
+
+func (c *Client) get(ctx context.Context, urlAddress *url.URL, resourceResponse interface{}, paramOptions []QueryParam) error {
+	req, err := c.createRequest(ctx, urlAddress, http.MethodGet, nil, resourceResponse, paramOptions)
+	if err != nil {
+		return err
+	}
+
+	var errRes errorResponse
+	r, err := c.wrapper.Do(req, WithErrorResponse(errRes), uhttp.WithJSONResponse(resourceResponse))
+	if err != nil {
+		return err
+	}
+
+	defer r.Body.Close()
+
+	return nil
+}
+
+func (c *Client) put(ctx context.Context, urlAddress *url.URL, data, resourceResponse interface{}, paramOptions []QueryParam) error {
+	req, err := c.createRequest(ctx, urlAddress, http.MethodPut, data, resourceResponse, paramOptions)
+	if err != nil {
+		return err
+	}
+
+	var errRes errorResponse
+	r, err := c.wrapper.Do(req, WithErrorResponse(errRes))
+	if err != nil {
+		return err
+	}
+
+	defer r.Body.Close()
+
+	return nil
+}
+
+func WithErrorResponse(resource errorResponse) uhttp.DoOption {
+	return func(res *http.Response) error {
+		if res.StatusCode >= 300 {
+			// Decode the JSON response body into the ErrorResponse struct
+			if err := json.NewDecoder(res.Body).Decode(&resource); err != nil {
+				return status.Error(codes.Unknown, "Request failed with unknown error")
+			}
+
+			// Construct a more detailed error message
+			errMsg := fmt.Sprintf("Request failed with status %d: %s", res.StatusCode, resource.Error.Message)
+
+			return status.Error(codes.Unknown, errMsg)
+		}
+
+		return nil
+	}
+}
+
+func (c *Client) createRequest(
+	ctx context.Context,
+	urlAddress *url.URL,
+	method string,
+	data,
+	resourceResponse interface{},
+	paramOptions []QueryParam,
+) (*http.Request, error) {
+	req, err := c.wrapper.NewRequest(
+		ctx,
+		method,
+		urlAddress,
+		uhttp.WithAcceptJSONHeader(),
+		uhttp.WithJSONBody(data),
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	if paramOptions != nil {
@@ -907,38 +1013,15 @@ func (c *Client) doRequest(
 		req.URL.RawQuery = queryParams.Encode()
 	}
 
-	c.auth.Apply(req)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
+	return req, nil
+}
 
-	rawResponse, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
+func handlePagination[T any](resp ListResponse[T]) ([]T, string, error) {
+	if resp.PaginationData.Next != "" {
+		return resp.Values, parsePageFromURL(resp.PaginationData.Next), nil
 	}
 
-	defer rawResponse.Body.Close()
-
-	if rawResponse.StatusCode >= 300 {
-		var errResp errorResponse
-
-		// Decode the JSON response body into the ErrorResponse struct
-		if err := json.NewDecoder(rawResponse.Body).Decode(&errResp); err != nil {
-			return status.Error(codes.Unknown, "Request failed with unknown error")
-		}
-
-		// Construct a more detailed error message
-		errMsg := fmt.Sprintf("Request failed with gRPC status %d: %s", rawResponse.StatusCode, errResp.Error.Message)
-
-		return status.Error(codes.Unknown, errMsg)
-	}
-
-	if method != http.MethodDelete {
-		if err := json.NewDecoder(rawResponse.Body).Decode(&resourceResponse); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return resp.Values, "", nil
 }
 
 func mapUsers(members []WorkspaceMember) []User {

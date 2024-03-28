@@ -2,7 +2,6 @@ package bitbucket
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -67,6 +66,10 @@ type errorResponse struct {
 	Error struct {
 		Message string `json:"message"`
 	} `json:"error"`
+}
+
+func (er *errorResponse) Message() string {
+	return fmt.Sprintf("Error: %s", er.Error.Message)
 }
 
 type UpdatePermissionPayload struct {
@@ -923,7 +926,7 @@ func (c *Client) delete(ctx context.Context, urlAddress *url.URL) error {
 	}
 
 	var errRes errorResponse
-	r, err := c.wrapper.Do(req, WithErrorResponse(errRes))
+	r, err := c.wrapper.Do(req, uhttp.WithErrorResponse(&errRes))
 	if err != nil {
 		return err
 	}
@@ -940,7 +943,7 @@ func (c *Client) get(ctx context.Context, urlAddress *url.URL, resourceResponse 
 	}
 
 	var errRes errorResponse
-	r, err := c.wrapper.Do(req, WithErrorResponse(errRes), uhttp.WithJSONResponse(resourceResponse))
+	r, err := c.wrapper.Do(req, uhttp.WithErrorResponse(&errRes), uhttp.WithJSONResponse(resourceResponse))
 	if err != nil {
 		return err
 	}
@@ -957,7 +960,7 @@ func (c *Client) put(ctx context.Context, urlAddress *url.URL, data, resourceRes
 	}
 
 	var errRes errorResponse
-	r, err := c.wrapper.Do(req, WithErrorResponse(errRes))
+	r, err := c.wrapper.Do(req, uhttp.WithErrorResponse(&errRes))
 	if err != nil {
 		return err
 	}
@@ -965,24 +968,6 @@ func (c *Client) put(ctx context.Context, urlAddress *url.URL, data, resourceRes
 	defer r.Body.Close()
 
 	return nil
-}
-
-func WithErrorResponse(resource errorResponse) uhttp.DoOption {
-	return func(res *http.Response) error {
-		if res.StatusCode >= 300 {
-			// Decode the JSON response body into the ErrorResponse struct
-			if err := json.NewDecoder(res.Body).Decode(&resource); err != nil {
-				return status.Error(codes.Unknown, "Request failed with unknown error")
-			}
-
-			// Construct a more detailed error message
-			errMsg := fmt.Sprintf("Request failed with status %d: %s", res.StatusCode, resource.Error.Message)
-
-			return status.Error(codes.Unknown, errMsg)
-		}
-
-		return nil
-	}
 }
 
 func (c *Client) createRequest(

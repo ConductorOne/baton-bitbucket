@@ -58,9 +58,11 @@ func isPermissionDeniedErr(err error) bool {
 func (w *workspaceResourceType) checkPermissions(ctx context.Context, workspace *bitbucket.Workspace) (bool, error) {
 	l := ctxzap.Extract(ctx)
 	logMissingPermission := func(obj string) {
-		l.Info(
-			fmt.Sprintf("missing permission to list %s in workspace", obj),
-			zap.String("workspace", workspace.Slug), zap.String("workspace id", workspace.Id),
+		l.Error(
+			"missing permission to list object in workspace",
+			zap.String("workspace", workspace.Slug),
+			zap.String("workspace id", workspace.Id),
+			zap.String("object", obj),
 		)
 	}
 	paginationVars := bitbucket.PaginationVars{

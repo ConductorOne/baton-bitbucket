@@ -137,9 +137,10 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, toke
 			if err != nil {
 				return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to verify permissions: %w", err)
 			}
-			if ok {
-				rv = append(rv, wr)
+			if !ok {
+				continue
 			}
+			rv = append(rv, wr)
 		}
 
 		return rv, pageToken, nil, nil

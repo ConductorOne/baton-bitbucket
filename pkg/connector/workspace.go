@@ -4,6 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
@@ -45,6 +50,52 @@ func workspaceResource(ctx context.Context, workspace *bitbucket.Workspace) (*v2
 	return resource, nil
 }
 
+func isPermissionDeniedErr(err error) bool {
+	e, ok := status.FromError(err)
+	// If the error is not a status error we short circuit and return false. Otherwise, we check if the error code is PermissionDenied.
+	return ok && e.Code() == codes.PermissionDenied
+}
+func (w *workspaceResourceType) checkPermissions(ctx context.Context, workspace *bitbucket.Workspace) (bool, error) {
+	l := ctxzap.Extract(ctx)
+	logMissingPermission := func(obj string) {
+		l.Error(
+			"missing permission to list object in workspace",
+			zap.String("workspace", workspace.Slug),
+			zap.String("workspace id", workspace.Id),
+			zap.String("object", obj),
+		)
+	}
+	paginationVars := bitbucket.PaginationVars{
+		Limit: 1,
+		Page:  "",
+	}
+	_, err := w.client.GetWorkspaceUserGroups(ctx, workspace.Id)
+	if err != nil {
+		if isPermissionDeniedErr(err) {
+			logMissingPermission("userGroups")
+			return false, nil
+		}
+		return false, err
+	}
+	_, _, err = w.client.GetWorkspaceMembers(ctx, workspace.Id, paginationVars)
+	if err != nil {
+		if isPermissionDeniedErr(err) {
+			logMissingPermission("users")
+			return false, nil
+		}
+		return false, err
+	}
+	_, _, err = w.client.GetWorkspaceProjects(ctx, workspace.Id, paginationVars)
+	if err != nil {
+		if isPermissionDeniedErr(err) {
+			logMissingPermission("projects")
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, token *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	var rv []*v2.Resource
 
@@ -82,7 +133,13 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, toke
 			if err != nil {
 				return nil, "", nil, err
 			}
-
+			ok, err := w.checkPermissions(ctx, &workspaceCopy)
+			if err != nil {
+				return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to verify permissions: %w", err)
+			}
+			if !ok {
+				continue
+			}
 			rv = append(rv, wr)
 		}
 

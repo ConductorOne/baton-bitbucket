@@ -3,9 +3,14 @@ package connector
 import (
 	"context"
 	"fmt"
+
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"strings"
 
+	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
@@ -127,6 +132,18 @@ func (bb *Bitbucket) checkPermissions(ctx context.Context, workspace *v2.Resourc
 		return false, err
 	}
 	return true, nil
+}
+
+func isPermissionDeniedErr(err error) bool {
+	e, ok := status.FromError(err)
+	if ok && e.Code() == codes.PermissionDenied {
+		return true
+	}
+	// In most cases the error code is unknown and the error message contains "status 403".
+	if (!ok || e.Code() == codes.Unknown) && strings.Contains(err.Error(), "status 403") {
+		return true
+	}
+	return false
 }
 
 // Validate hits the Bitbucket API to validate that the configured credentials are valid and compatible.

@@ -91,12 +91,13 @@ func (bb *Bitbucket) getValidWorkspaces(ctx context.Context) ([]string, error) {
 
 func (bb *Bitbucket) checkPermissions(ctx context.Context, workspace *v2.Resource) (bool, error) {
 	l := ctxzap.Extract(ctx)
-	logMissingPermission := func(obj string) {
+	logMissingPermission := func(obj string, err error) {
 		l.Error(
 			"missing permission to list object in workspace",
 			zap.String("workspace", workspace.DisplayName),
 			zap.String("workspace id", workspace.Id.Resource),
 			zap.String("object", obj),
+			zap.Error(err),
 		)
 	}
 	paginationVars := bitbucket.PaginationVars{
@@ -106,7 +107,7 @@ func (bb *Bitbucket) checkPermissions(ctx context.Context, workspace *v2.Resourc
 	_, err := bb.client.GetWorkspaceUserGroups(ctx, workspace.Id.Resource)
 	if err != nil {
 		if isPermissionDeniedErr(err) {
-			logMissingPermission("userGroups")
+			logMissingPermission("userGroups", err)
 			return false, nil
 		}
 		return false, err
@@ -114,7 +115,7 @@ func (bb *Bitbucket) checkPermissions(ctx context.Context, workspace *v2.Resourc
 	_, _, err = bb.client.GetWorkspaceMembers(ctx, workspace.Id.Resource, paginationVars)
 	if err != nil {
 		if isPermissionDeniedErr(err) {
-			logMissingPermission("users")
+			logMissingPermission("users", err)
 			return false, nil
 		}
 		return false, err
@@ -122,7 +123,7 @@ func (bb *Bitbucket) checkPermissions(ctx context.Context, workspace *v2.Resourc
 	_, _, err = bb.client.GetWorkspaceProjects(ctx, workspace.Id.Resource, paginationVars)
 	if err != nil {
 		if isPermissionDeniedErr(err) {
-			logMissingPermission("projects")
+			logMissingPermission("projects", err)
 			return false, nil
 		}
 		return false, err
@@ -144,6 +145,9 @@ func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, err
 	bb.workspaces, err = bb.getValidWorkspaces(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("bitbucket-connector: failed to get valid workspaces: %w", err)
+	}
+	if len(bb.workspaces) == 0 {
+		return nil, fmt.Errorf("bitbucket-connector: no authorized workspaces found")
 	}
 	return nil, nil
 }

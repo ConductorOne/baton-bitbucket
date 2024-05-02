@@ -49,9 +49,6 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, toke
 	var rv []*v2.Resource
 
 	if w.client.IsUserScoped() {
-		if token == nil {
-			return nil, "", nil, fmt.Errorf("bitbucket-connector: invalid page token")
-		}
 		bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id})
 		if err != nil {
 			return nil, "", nil, err

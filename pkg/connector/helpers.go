@@ -2,6 +2,8 @@ package connector
 
 import (
 	"fmt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"strings"
 
 	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
@@ -90,4 +92,15 @@ func ParseEntitlementID(id string) (*v2.ResourceId, string, error) {
 		Resource:     strings.Join(parts[1:len(parts)-1], ":"),
 	}
 	return resourceId, parts[len(parts)-1], nil
+}
+func isPermissionDeniedErr(err error) bool {
+	e, ok := status.FromError(err)
+	if ok && e.Code() == codes.PermissionDenied {
+		return true
+	}
+	// In most cases the error code is unknown and the error message contains "status 403".
+	if (!ok || e.Code() == codes.Unknown) && strings.Contains(err.Error(), "status 403") {
+		return true
+	}
+	return false
 }

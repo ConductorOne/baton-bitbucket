@@ -3,6 +3,8 @@ package connector
 import (
 	"context"
 	"fmt"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 
 	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -75,9 +77,57 @@ func (bb *Bitbucket) getValidWorkspaces(ctx context.Context) ([]string, error) {
 	}
 	validWorkspaces := make([]string, 0)
 	for _, workspace := range workspaceResources {
+		ok, err := bb.checkPermissions(ctx, workspace)
+		if err != nil {
+			return nil, fmt.Errorf("bitbucket-connector: failed to verify permissions: %w", err)
+		}
+		if !ok {
+			continue
+		}
 		validWorkspaces = append(validWorkspaces, workspace.DisplayName)
 	}
 	return validWorkspaces, nil
+}
+
+func (bb *Bitbucket) checkPermissions(ctx context.Context, workspace *v2.Resource) (bool, error) {
+	l := ctxzap.Extract(ctx)
+	logMissingPermission := func(obj string) {
+		l.Error(
+			"missing permission to list object in workspace",
+			zap.String("workspace", workspace.DisplayName),
+			zap.String("workspace id", workspace.Id.Resource),
+			zap.String("object", obj),
+		)
+	}
+	paginationVars := bitbucket.PaginationVars{
+		Limit: 1,
+		Page:  "",
+	}
+	_, err := bb.client.GetWorkspaceUserGroups(ctx, workspace.Id.Resource)
+	if err != nil {
+		if isPermissionDeniedErr(err) {
+			logMissingPermission("userGroups")
+			return false, nil
+		}
+		return false, err
+	}
+	_, _, err = bb.client.GetWorkspaceMembers(ctx, workspace.Id.Resource, paginationVars)
+	if err != nil {
+		if isPermissionDeniedErr(err) {
+			logMissingPermission("users")
+			return false, nil
+		}
+		return false, err
+	}
+	_, _, err = bb.client.GetWorkspaceProjects(ctx, workspace.Id.Resource, paginationVars)
+	if err != nil {
+		if isPermissionDeniedErr(err) {
+			logMissingPermission("projects")
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // Validate hits the Bitbucket API to validate that the configured credentials are valid and compatible.

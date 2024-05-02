@@ -71,10 +71,19 @@ func (bb *Bitbucket) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error
 // Get all the valid workspaces, ie. the workspaces that the user has access to.
 func (bb *Bitbucket) getValidWorkspaces(ctx context.Context) ([]string, error) {
 	workspaceObject := workspaceBuilder(bb.client, bb.workspaces)
-	workspaceResources, _, _, err := workspaceObject.List(ctx, nil, &pagination.Token{Token: ""})
-	if err != nil {
-		return nil, err
+	pageToken := ""
+	workspaceResources := make([]*v2.Resource, 0)
+	for {
+		temp, pageToken, _, err := workspaceObject.List(ctx, nil, &pagination.Token{Token: pageToken})
+		if err != nil {
+			return nil, err
+		}
+		workspaceResources = append(workspaceResources, temp...)
+		if pageToken == "" {
+			break
+		}
 	}
+
 	validWorkspaces := make([]string, 0)
 	for _, workspace := range workspaceResources {
 		ok, err := bb.checkPermissions(ctx, workspace)

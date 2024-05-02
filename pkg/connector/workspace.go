@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"fmt"
+
 	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
@@ -46,6 +47,7 @@ func workspaceResource(ctx context.Context, workspace *bitbucket.Workspace) (*v2
 
 func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, token *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	var rv []*v2.Resource
+
 	if w.client.IsUserScoped() {
 		if token == nil {
 			return nil, "", nil, fmt.Errorf("bitbucket-connector: invalid page token")
@@ -83,11 +85,13 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, toke
 			if err != nil {
 				return nil, "", nil, err
 			}
+
 			rv = append(rv, wr)
 		}
 
 		return rv, pageToken, nil, nil
 	}
+
 	workspaceId, err := w.client.WorkspaceId()
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to get workspace id: %w", err)

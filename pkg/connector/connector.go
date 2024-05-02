@@ -8,7 +8,10 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
+	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 )
 
 var (
@@ -65,6 +68,78 @@ func (bb *Bitbucket) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error
 	}, nil
 }
 
+// Get all the valid workspaces, ie. the workspaces that the user has access to.
+func (bb *Bitbucket) getValidWorkspaces(ctx context.Context) ([]string, error) {
+	workspaceObject := workspaceBuilder(bb.client, bb.workspaces)
+	pageToken := ""
+	workspaceResources := make([]*v2.Resource, 0)
+	for {
+		temp, pageToken, _, err := workspaceObject.List(ctx, nil, &pagination.Token{Token: pageToken})
+		if err != nil {
+			return nil, err
+		}
+		workspaceResources = append(workspaceResources, temp...)
+		if pageToken == "" {
+			break
+		}
+	}
+
+	validWorkspaces := make([]string, 0)
+	for _, workspace := range workspaceResources {
+		ok, err := bb.checkPermissions(ctx, workspace)
+		if err != nil {
+			return nil, fmt.Errorf("bitbucket-connector: failed to verify permissions: %w", err)
+		}
+		if !ok {
+			continue
+		}
+		validWorkspaces = append(validWorkspaces, workspace.DisplayName)
+	}
+	return validWorkspaces, nil
+}
+
+func (bb *Bitbucket) checkPermissions(ctx context.Context, workspace *v2.Resource) (bool, error) {
+	l := ctxzap.Extract(ctx)
+	logMissingPermission := func(obj string, err error) {
+		l.Error(
+			"missing permission to list object in workspace",
+			zap.String("workspace", workspace.DisplayName),
+			zap.String("workspace id", workspace.Id.Resource),
+			zap.String("object", obj),
+			zap.Error(err),
+		)
+	}
+	paginationVars := bitbucket.PaginationVars{
+		Limit: 1,
+		Page:  "",
+	}
+	_, err := bb.client.GetWorkspaceUserGroups(ctx, workspace.Id.Resource)
+	if err != nil {
+		if isPermissionDeniedErr(err) {
+			logMissingPermission("userGroups", err)
+			return false, nil
+		}
+		return false, err
+	}
+	_, _, err = bb.client.GetWorkspaceMembers(ctx, workspace.Id.Resource, paginationVars)
+	if err != nil {
+		if isPermissionDeniedErr(err) {
+			logMissingPermission("users", err)
+			return false, nil
+		}
+		return false, err
+	}
+	_, _, err = bb.client.GetWorkspaceProjects(ctx, workspace.Id.Resource, paginationVars)
+	if err != nil {
+		if isPermissionDeniedErr(err) {
+			logMissingPermission("projects", err)
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 // Validate hits the Bitbucket API to validate that the configured credentials are valid and compatible.
 func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, error) {
 	// get the scope of used credentials
@@ -75,6 +150,13 @@ func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, err
 	err = bb.setScope(user)
 	if err != nil {
 		return nil, err
+	}
+	bb.workspaces, err = bb.getValidWorkspaces(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("bitbucket-connector: failed to get valid workspaces: %w", err)
+	}
+	if len(bb.workspaces) == 0 {
+		return nil, fmt.Errorf("bitbucket-connector: no authorized workspaces found")
 	}
 	return nil, nil
 }

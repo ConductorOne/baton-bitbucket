@@ -2,8 +2,6 @@ package connector
 
 import (
 	"fmt"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"strings"
 
 	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
@@ -11,6 +9,8 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var ResourcesPageSize = 50

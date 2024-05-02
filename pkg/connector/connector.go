@@ -8,6 +8,7 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
+	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 )
 
@@ -65,6 +66,20 @@ func (bb *Bitbucket) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error
 	}, nil
 }
 
+// Get all the valid workspaces, ie. the workspaces that the user has access to.
+func (bb *Bitbucket) getValidWorkspaces(ctx context.Context) ([]string, error) {
+	workspaceObject := workspaceBuilder(bb.client, bb.workspaces)
+	workspaceResources, _, _, err := workspaceObject.List(ctx, nil, &pagination.Token{Token: ""})
+	if err != nil {
+		return nil, err
+	}
+	validWorkspaces := make([]string, 0)
+	for _, workspace := range workspaceResources {
+		validWorkspaces = append(validWorkspaces, workspace.DisplayName)
+	}
+	return validWorkspaces, nil
+}
+
 // Validate hits the Bitbucket API to validate that the configured credentials are valid and compatible.
 func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, error) {
 	// get the scope of used credentials
@@ -75,6 +90,10 @@ func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, err
 	err = bb.setScope(user)
 	if err != nil {
 		return nil, err
+	}
+	bb.workspaces, err = bb.getValidWorkspaces(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("bitbucket-connector: failed to get valid workspaces: %w", err)
 	}
 	return nil, nil
 }

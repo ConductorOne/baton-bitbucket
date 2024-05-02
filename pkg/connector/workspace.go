@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
@@ -52,8 +53,14 @@ func workspaceResource(ctx context.Context, workspace *bitbucket.Workspace) (*v2
 
 func isPermissionDeniedErr(err error) bool {
 	e, ok := status.FromError(err)
-	// If the error is not a status error we short circuit and return false. Otherwise, we check if the error code is PermissionDenied.
-	return ok && e.Code() == codes.PermissionDenied
+	if ok && e.Code() == codes.PermissionDenied {
+		return true
+	}
+	// In most cases the error code is unknown and the error message contains "status 403".
+	if (!ok || e.Code() == codes.Unknown) && strings.Contains(err.Error(), "status 403") {
+		return true
+	}
+	return false
 }
 func (w *workspaceResourceType) checkPermissions(ctx context.Context, workspace *bitbucket.Workspace) (bool, error) {
 	l := ctxzap.Extract(ctx)
@@ -98,8 +105,10 @@ func (w *workspaceResourceType) checkPermissions(ctx context.Context, workspace 
 
 func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, token *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	var rv []*v2.Resource
-
 	if w.client.IsUserScoped() {
+		if token == nil {
+			return nil, "", nil, fmt.Errorf("bitbucket-connector: invalid page token")
+		}
 		bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id})
 		if err != nil {
 			return nil, "", nil, err
@@ -145,7 +154,6 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, toke
 
 		return rv, pageToken, nil, nil
 	}
-
 	workspaceId, err := w.client.WorkspaceId()
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to get workspace id: %w", err)
@@ -165,6 +173,13 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, toke
 	wr, err := workspaceResource(ctx, workspace)
 	if err != nil {
 		return nil, "", nil, err
+	}
+	ok, err := w.checkPermissions(ctx, workspace)
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to verify permissions: %w", err)
+	}
+	if !ok {
+		return rv, "", nil, nil
 	}
 
 	rv = append(rv, wr)

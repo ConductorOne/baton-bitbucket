@@ -202,6 +202,7 @@ func (c *Client) SetWorkspaceIDs(ctx context.Context, workspaceIDs []string) err
 		}
 
 		for _, workspace := range workspaces {
+			workspace := workspace
 			if _, ok := givenWorkspaceIDs[workspace.Id]; !ok && len(givenWorkspaceIDs) > 0 {
 				continue
 			}

@@ -172,10 +172,9 @@ func (c *Client) filterWorkspaces(ctx context.Context, workspaces []Workspace) (
 	for _, workspace := range workspaces {
 		// We call this function in order to initialize the workspaceID's map. In that case we need to return all workspaces,
 		// so they can be filtered and only the valid ones are set in the workspaceIds map.
-		if c.workspaceIDs != nil {
-			if _, ok := c.workspaceIDs[workspace.Id]; ok {
-				continue
-			}
+		_, ok := c.workspaceIDs[workspace.Id]
+		if c.workspaceIDs != nil && !ok {
+			continue
 		}
 
 		filteredWorkspaces = append(filteredWorkspaces, workspace)

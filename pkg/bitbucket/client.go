@@ -166,21 +166,18 @@ func (c *Client) checkPermissions(ctx context.Context, workspace *Workspace) (bo
 	return true, nil
 }
 
-func (c *Client) isValidWorkspaceId(workspaceId string) bool {
-	if c.workspaceIDs == nil || len(c.workspaceIDs) == 0 {
-		return true
-	}
-	_, ok := c.workspaceIDs[workspaceId]
-	return ok
-}
 func (c *Client) filterWorkspaces(ctx context.Context, workspaces []Workspace) ([]Workspace, error) {
 	filteredWorkspaces := make([]Workspace, 0)
 
 	for _, workspace := range workspaces {
-		// Check if workspace is in the list of allowed workspaces, which is empty if the list is not provided.
-		if !c.isValidWorkspaceId(workspace.Id) {
-			continue
+		// We can call this function in order to initialize the workspaceID's map. In that case we need to return all workspaces,
+		// so they can be filtered and only the valid ones are set in the workspaceIds map.
+		if c.workspaceIDs != nil {
+			if _, ok := c.workspaceIDs[workspace.Id]; ok {
+				continue
+			}
 		}
+
 		filteredWorkspaces = append(filteredWorkspaces, workspace)
 	}
 

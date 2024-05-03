@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
@@ -52,8 +53,14 @@ func workspaceResource(ctx context.Context, workspace *bitbucket.Workspace) (*v2
 
 func isPermissionDeniedErr(err error) bool {
 	e, ok := status.FromError(err)
-	// If the error is not a status error we short circuit and return false. Otherwise, we check if the error code is PermissionDenied.
-	return ok && e.Code() == codes.PermissionDenied
+	if ok && e.Code() == codes.PermissionDenied {
+		return true
+	}
+	// In most cases the error code is unknown and the error message contains "status 403".
+	if (!ok || e.Code() == codes.Unknown) && strings.Contains(err.Error(), "status 403") {
+		return true
+	}
+	return false
 }
 func (w *workspaceResourceType) checkPermissions(ctx context.Context, workspace *bitbucket.Workspace) (bool, error) {
 	l := ctxzap.Extract(ctx)

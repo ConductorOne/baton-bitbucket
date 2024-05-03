@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -41,8 +44,9 @@ const (
 )
 
 type Client struct {
-	wrapper *uhttp.BaseHttpClient
-	scope   Scope
+	wrapper      *uhttp.BaseHttpClient
+	scope        Scope
+	workspaceIDs map[string]bool
 }
 
 func NewClient(httpClient *http.Client) *Client {
@@ -108,29 +112,112 @@ func (c *Client) WorkspaceId() (string, error) {
 	}
 }
 
-// If client have access to multiple workspaces, method `WorkspaceIds`
-// returns list of workspace ids otherwise it returns error.
-func (c *Client) WorkspaceIDs(ctx context.Context) ([]string, error) {
-	workspaceIDs := make([]string, 0)
+func isPermissionDeniedErr(err error) bool {
+	e, ok := status.FromError(err)
+	if ok && e.Code() == codes.PermissionDenied {
+		return true
+	}
+	// In most cases the error code is unknown and the error message contains "status 403".
+	if (!ok || e.Code() == codes.Unknown) && strings.Contains(err.Error(), "status 403") {
+		return true
+	}
+	return false
+}
 
-	if c.IsUserScoped() {
-		workspaces, err := c.GetAllWorkspaces(ctx)
-		if err != nil {
-			return nil, err
+func (c *Client) checkPermissions(ctx context.Context, workspace *Workspace) (bool, error) {
+	l := ctxzap.Extract(ctx)
+	logMissingPermission := func(obj string, err error) {
+		l.Error(
+			"missing permission to list object in workspace",
+			zap.String("workspace", workspace.Slug),
+			zap.String("workspace id", workspace.Id),
+			zap.String("object", obj),
+			zap.Error(err),
+		)
+	}
+	paginationVars := PaginationVars{
+		Limit: 1,
+		Page:  "",
+	}
+	_, err := c.GetWorkspaceUserGroups(ctx, workspace.Id)
+	if err != nil {
+		if isPermissionDeniedErr(err) {
+			logMissingPermission("userGroups", err)
+			return false, nil
+		}
+		return false, err
+	}
+	_, _, err = c.GetWorkspaceMembers(ctx, workspace.Id, paginationVars)
+	if err != nil {
+		if isPermissionDeniedErr(err) {
+			logMissingPermission("users", err)
+			return false, nil
+		}
+		return false, err
+	}
+	_, _, err = c.GetWorkspaceProjects(ctx, workspace.Id, paginationVars)
+	if err != nil {
+		if isPermissionDeniedErr(err) {
+			logMissingPermission("projects", err)
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+func (c *Client) filterWorkspaces(ctx context.Context, workspaces []Workspace) ([]Workspace, error) {
+	filteredWorkspaces := make([]Workspace, 0)
+
+	for _, workspace := range workspaces {
+		// We call this function in order to initialize the workspaceID's map. In that case we need to return all workspaces,
+		// so they can be filtered and only the valid ones are set in the workspaceIds map.
+		_, ok := c.workspaceIDs[workspace.Id]
+		if c.workspaceIDs != nil && !ok {
+			continue
 		}
 
-		for _, workspace := range workspaces {
-			workspaceIDs = append(workspaceIDs, workspace.Id)
-		}
-
-		if len(workspaceIDs) == 0 {
-			return nil, status.Error(codes.NotFound, "no workspaces found")
-		}
-	} else {
-		return nil, status.Error(codes.InvalidArgument, "client is not user scoped")
+		filteredWorkspaces = append(filteredWorkspaces, workspace)
 	}
 
-	return workspaceIDs, nil
+	return filteredWorkspaces, nil
+}
+
+// If client have access to multiple workspaces, method `WorkspaceIDs`
+// returns list of workspace ids otherwise it returns error.
+func (c *Client) SetWorkspaceIDs(ctx context.Context, workspaceIDs []string) error {
+	if !c.IsUserScoped() {
+		return status.Error(codes.InvalidArgument, "client is not user scoped")
+	}
+	c.workspaceIDs = make(map[string]bool)
+	givenWorkspaceIDs := make(map[string]bool)
+	for _, workspaceId := range workspaceIDs {
+		givenWorkspaceIDs[workspaceId] = true
+	}
+
+	workspaces, err := c.GetAllWorkspaces(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, workspace := range workspaces {
+		workspace := workspace
+		if _, ok := givenWorkspaceIDs[workspace.Id]; !ok && len(givenWorkspaceIDs) > 0 {
+			continue
+		}
+		ok, err := c.checkPermissions(ctx, &workspace)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		c.workspaceIDs[workspace.Id] = true
+	}
+	if len(c.workspaceIDs) == 0 {
+		return status.Error(codes.Unauthenticated, "no authenticated workspaces found")
+	}
+	return nil
 }
 
 // GetWorkspaces lists all workspaces current user belongs to.
@@ -150,7 +237,10 @@ func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars Pagination
 			prepareFilters(""),
 		},
 	)
-
+	if err != nil {
+		return nil, "", err
+	}
+	workspacesResponse.Values, err = c.filterWorkspaces(ctx, workspacesResponse.Values)
 	if err != nil {
 		return nil, "", err
 	}
@@ -202,8 +292,10 @@ func (c *Client) GetWorkspace(ctx context.Context, workspaceId string) (*Workspa
 			prepareFilters(""),
 		},
 	)
-
 	if err != nil {
+		if isPermissionDeniedErr(err) {
+			return nil, status.Error(codes.PermissionDenied, "missing permission to get workspace")
+		}
 		return nil, err
 	}
 
@@ -228,7 +320,6 @@ func (c *Client) GetWorkspaceMembers(ctx context.Context, workspaceId string, ge
 			prepareFilters("", "-*.workspace"),
 		},
 	)
-
 	if err != nil {
 		return nil, "", err
 	}

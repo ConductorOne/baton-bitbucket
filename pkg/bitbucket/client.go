@@ -195,28 +195,28 @@ func (c *Client) SetWorkspaceIDs(ctx context.Context, workspaceIDs []string) err
 	for _, workspaceId := range workspaceIDs {
 		givenWorkspaceIDs[workspaceId] = true
 	}
-	if c.IsUserScoped() {
-		workspaces, err := c.GetAllWorkspaces(ctx)
+	if !c.IsUserScoped() {
+		return status.Error(codes.InvalidArgument, "client is not user scoped")
+	}
+
+	workspaces, err := c.GetAllWorkspaces(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, workspace := range workspaces {
+		workspace := workspace
+		if _, ok := givenWorkspaceIDs[workspace.Id]; !ok && len(givenWorkspaceIDs) > 0 {
+			continue
+		}
+		ok, err := c.checkPermissions(ctx, &workspace)
 		if err != nil {
 			return err
 		}
-
-		for _, workspace := range workspaces {
-			workspace := workspace
-			if _, ok := givenWorkspaceIDs[workspace.Id]; !ok && len(givenWorkspaceIDs) > 0 {
-				continue
-			}
-			ok, err := c.checkPermissions(ctx, &workspace)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				continue
-			}
-			c.workspaceIDs[workspace.Id] = true
+		if !ok {
+			continue
 		}
-	} else {
-		return status.Error(codes.InvalidArgument, "client is not user scoped")
+		c.workspaceIDs[workspace.Id] = true
 	}
 	if len(c.workspaceIDs) == 0 {
 		return status.Error(codes.Unauthenticated, "no authenticated workspaces found")

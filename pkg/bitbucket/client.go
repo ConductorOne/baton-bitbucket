@@ -186,13 +186,13 @@ func (c *Client) filterWorkspaces(ctx context.Context, workspaces []Workspace) (
 // If client have access to multiple workspaces, method `WorkspaceIDs`
 // returns list of workspace ids otherwise it returns error.
 func (c *Client) SetWorkspaceIDs(ctx context.Context, workspaceIDs []string) error {
+	if !c.IsUserScoped() {
+		return status.Error(codes.InvalidArgument, "client is not user scoped")
+	}
 	c.workspaceIDs = make(map[string]bool)
 	givenWorkspaceIDs := make(map[string]bool)
 	for _, workspaceId := range workspaceIDs {
 		givenWorkspaceIDs[workspaceId] = true
-	}
-	if !c.IsUserScoped() {
-		return status.Error(codes.InvalidArgument, "client is not user scoped")
 	}
 
 	workspaces, err := c.GetAllWorkspaces(ctx)

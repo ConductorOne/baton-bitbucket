@@ -76,7 +76,7 @@ func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, err
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if bb.client.IsUserScoped() {
 		err = bb.client.SetWorkspaceIDs(ctx, bb.workspaces)
 		if err != nil {

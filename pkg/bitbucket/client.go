@@ -3,13 +3,13 @@ package bitbucket
 import (
 	"context"
 	"fmt"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
-	"go.uber.org/zap"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -46,7 +46,7 @@ const (
 type Client struct {
 	wrapper      *uhttp.BaseHttpClient
 	scope        Scope
-	workspaceIds map[string]bool
+	workspaceIDs map[string]bool
 }
 
 func NewClient(httpClient *http.Client) *Client {
@@ -167,10 +167,10 @@ func (c *Client) checkPermissions(ctx context.Context, workspace *Workspace) (bo
 }
 
 func (c *Client) isValidWorkspaceId(workspaceId string) bool {
-	if c.workspaceIds == nil || len(c.workspaceIds) == 0 {
+	if c.workspaceIDs == nil || len(c.workspaceIDs) == 0 {
 		return true
 	}
-	_, ok := c.workspaceIds[workspaceId]
+	_, ok := c.workspaceIDs[workspaceId]
 	return ok
 }
 func (c *Client) filterWorkspaces(ctx context.Context, workspaces []Workspace) ([]Workspace, error) {
@@ -187,13 +187,13 @@ func (c *Client) filterWorkspaces(ctx context.Context, workspaces []Workspace) (
 	return filteredWorkspaces, nil
 }
 
-// If client have access to multiple workspaces, method `WorkspaceIds`
+// If client have access to multiple workspaces, method `WorkspaceIDs`
 // returns list of workspace ids otherwise it returns error.
-func (c *Client) SetWorkspaceIDs(ctx context.Context, workspaceIds []string) error {
-	c.workspaceIds = make(map[string]bool)
-	givenWorkspaceIds := make(map[string]bool)
-	for _, workspaceId := range workspaceIds {
-		givenWorkspaceIds[workspaceId] = true
+func (c *Client) SetWorkspaceIDs(ctx context.Context, workspaceIDs []string) error {
+	c.workspaceIDs = make(map[string]bool)
+	givenWorkspaceIDs := make(map[string]bool)
+	for _, workspaceId := range workspaceIDs {
+		givenWorkspaceIDs[workspaceId] = true
 	}
 	if c.IsUserScoped() {
 		workspaces, err := c.GetAllWorkspaces(ctx)
@@ -202,7 +202,7 @@ func (c *Client) SetWorkspaceIDs(ctx context.Context, workspaceIds []string) err
 		}
 
 		for _, workspace := range workspaces {
-			if _, ok := givenWorkspaceIds[workspace.Id]; !ok && len(givenWorkspaceIds) > 0 {
+			if _, ok := givenWorkspaceIDs[workspace.Id]; !ok && len(givenWorkspaceIDs) > 0 {
 				continue
 			}
 			ok, err := c.checkPermissions(ctx, &workspace)
@@ -212,12 +212,12 @@ func (c *Client) SetWorkspaceIDs(ctx context.Context, workspaceIds []string) err
 			if !ok {
 				continue
 			}
-			c.workspaceIds[workspace.Id] = true
+			c.workspaceIDs[workspace.Id] = true
 		}
 	} else {
 		return status.Error(codes.InvalidArgument, "client is not user scoped")
 	}
-	if len(c.workspaceIds) == 0 {
+	if len(c.workspaceIDs) == 0 {
 		return status.Error(codes.Unauthenticated, "no authenticated workspaces found")
 	}
 	return nil

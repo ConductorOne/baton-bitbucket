@@ -1,3 +1,4 @@
+version: 2
 project_name: baton-bitbucket
 builds:
   - binary: baton-bitbucket

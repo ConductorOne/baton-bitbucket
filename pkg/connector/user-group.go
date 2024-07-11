@@ -127,13 +127,7 @@ func (ug *userGroupResourceType) Grants(ctx context.Context, resource *v2.Resour
 	// create membership grants
 	var rv []*v2.Grant
 	for _, id := range userIDs {
-		user, err := ug.client.GetUser(ctx, id)
-		if err != nil {
-			return nil, "", nil, err
-		}
-
-		userCopy := user
-		ur, err := userResource(ctx, userCopy, resource.ParentResourceId)
+		rID, err := rs.NewResourceID(resourceTypeUser, id)
 		if err != nil {
 			return nil, "", nil, err
 		}
@@ -143,7 +137,7 @@ func (ug *userGroupResourceType) Grants(ctx context.Context, resource *v2.Resour
 			grant.NewGrant(
 				resource,
 				memberEntitlement,
-				ur.Id,
+				rID,
 			),
 		)
 	}

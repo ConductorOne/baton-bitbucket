@@ -1011,7 +1011,7 @@ func (c *Client) DeleteRepoUserPermission(
 }
 
 func (c *Client) delete(ctx context.Context, urlAddress *url.URL) error {
-	req, err := c.createRequest(ctx, urlAddress, http.MethodDelete, nil, nil, nil)
+	req, err := c.createRequest(ctx, urlAddress, http.MethodDelete, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -1028,7 +1028,7 @@ func (c *Client) delete(ctx context.Context, urlAddress *url.URL) error {
 }
 
 func (c *Client) get(ctx context.Context, urlAddress *url.URL, resourceResponse interface{}, paramOptions []QueryParam) error {
-	req, err := c.createRequest(ctx, urlAddress, http.MethodGet, nil, resourceResponse, paramOptions)
+	req, err := c.createRequest(ctx, urlAddress, http.MethodGet, nil, paramOptions)
 	if err != nil {
 		return err
 	}
@@ -1045,13 +1045,13 @@ func (c *Client) get(ctx context.Context, urlAddress *url.URL, resourceResponse 
 }
 
 func (c *Client) put(ctx context.Context, urlAddress *url.URL, data, resourceResponse interface{}, paramOptions []QueryParam) error {
-	req, err := c.createRequest(ctx, urlAddress, http.MethodPut, data, resourceResponse, paramOptions)
+	req, err := c.createRequest(ctx, urlAddress, http.MethodPut, data, paramOptions)
 	if err != nil {
 		return err
 	}
 
 	var errRes errorResponse
-	r, err := c.wrapper.Do(req, uhttp.WithErrorResponse(&errRes))
+	r, err := c.wrapper.Do(req, uhttp.WithErrorResponse(&errRes), uhttp.WithJSONResponse(resourceResponse))
 	if err != nil {
 		return err
 	}
@@ -1065,16 +1065,21 @@ func (c *Client) createRequest(
 	ctx context.Context,
 	urlAddress *url.URL,
 	method string,
-	data,
-	resourceResponse interface{},
+	data interface{},
 	paramOptions []QueryParam,
 ) (*http.Request, error) {
+	opts := []uhttp.RequestOption{
+		uhttp.WithAcceptJSONHeader(),
+	}
+	if data != nil {
+		opts = append(opts, uhttp.WithJSONBody(data))
+	}
+
 	req, err := c.wrapper.NewRequest(
 		ctx,
 		method,
 		urlAddress,
-		uhttp.WithAcceptJSONHeader(),
-		uhttp.WithJSONBody(data),
+		opts...,
 	)
 	if err != nil {
 		return nil, err

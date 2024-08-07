@@ -25,44 +25,119 @@ func SplitFullName(name string) (string, string) {
 	return firstName, lastName
 }
 
-func ExtractRateLimitData(header *http.Header) (*v2.RateLimitDescription, error) {
+var limitHeaders = []string{
+	"X-Ratelimit-Limit",
+	"Ratelimit-Limit",
+	"X-RateLimit-Requests-Limit", // Linear uses a non-standard header
+}
+
+var remainingHeaders = []string{
+	"X-Ratelimit-Remaining",
+	"Ratelimit-Remaining",
+	"X-RateLimit-Requests-Remaining", // Linear uses a non-standard header
+}
+
+var resetAtHeaders = []string{
+	"X-Ratelimit-Reset",
+	"Ratelimit-Reset",
+	"X-RateLimit-Requests-Reset", // Linear uses a non-standard header
+	"Retry-After",                // Often returned with 429
+}
+
+const thirtyYears = 60 * 60 * 24 * 365 * (2000 - 1970)
+
+// Many APIs don't follow standards and return incorrect datetimes. This function tries to handle those cases.
+func parseTime(timeStr string) (time.Time, error) {
+	var t time.Time
+	res, err := strconv.ParseInt(timeStr, 10, 64)
+	if err != nil {
+		t, err = time.Parse(time.RFC850, timeStr)
+		if err != nil {
+			// Datetimes should be RFC850 but some APIs return RFC3339
+			t, err = time.Parse(time.RFC3339, timeStr)
+		}
+		return t, err
+	}
+
+	// Times are supposed to be in seconds, but some APIs return milliseconds
+	if res > thirtyYears*1000 {
+		res /= 1000
+	}
+
+	// Times are supposed to be offsets, but some return absolute seconds since 1970.
+	if res > thirtyYears {
+		// If more than 30 years, it's probably an absolute timestamp
+		t = time.Unix(res, 0)
+	} else {
+		// Otherwise, it's a relative timestamp
+		t = time.Now().Add(time.Second * time.Duration(res))
+	}
+
+	return t, nil
+}
+
+func ExtractRateLimitData(statusCode int, header *http.Header) (*v2.RateLimitDescription, error) {
 	if header == nil {
 		return nil, nil
 	}
 
-	var l int64
+	var rlstatus v2.RateLimitDescription_Status
+
+	var limit int64
 	var err error
-	limit := header.Get("X-Ratelimit-Limit")
-	if limit != "" {
-		l, err = strconv.ParseInt(limit, 10, 64)
-		if err != nil {
-			return nil, err
+	for _, limitHeader := range limitHeaders {
+		limitStr := header.Get(limitHeader)
+		if limitStr != "" {
+			limit, err = strconv.ParseInt(limitStr, 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			break
 		}
 	}
 
-	var r int64
-	remaining := header.Get("X-Ratelimit-Remaining")
-	if remaining != "" {
-		r, err = strconv.ParseInt(remaining, 10, 64)
-		if err != nil {
-			return nil, err
+	var remaining int64
+	for _, remainingHeader := range remainingHeaders {
+		remainingStr := header.Get(remainingHeader)
+		if remainingStr != "" {
+			remaining, err = strconv.ParseInt(remainingStr, 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			break
 		}
+	}
+	if remaining > 0 {
+		rlstatus = v2.RateLimitDescription_STATUS_OK
 	}
 
 	var resetAt time.Time
-	reset := header.Get("X-Ratelimit-Reset")
-	if reset != "" {
-		res, err := strconv.ParseInt(reset, 10, 64)
-		if err != nil {
-			return nil, err
+	for _, resetAtHeader := range resetAtHeaders {
+		resetAtStr := header.Get(resetAtHeader)
+		if resetAtStr != "" {
+			resetAt, err = parseTime(resetAtStr)
+			if err != nil {
+				return nil, err
+			}
+			break
 		}
+	}
 
-		resetAt = time.Now().Add(time.Second * time.Duration(res))
+	if statusCode == http.StatusTooManyRequests {
+		rlstatus = v2.RateLimitDescription_STATUS_OVERLIMIT
+		remaining = 0
+	}
+
+	// If we didn't get any rate limit headers and status code is 429, return some sane defaults
+	if remaining == 0 && resetAt.IsZero() && rlstatus == v2.RateLimitDescription_STATUS_OVERLIMIT {
+		limit = 1
+		resetAt = time.Now().Add(time.Second * 60)
 	}
 
 	return &v2.RateLimitDescription{
-		Limit:     l,
-		Remaining: r,
+		Status:    rlstatus,
+		Limit:     limit,
+		Remaining: remaining,
 		ResetAt:   timestamppb.New(resetAt),
 	}, nil
 }
@@ -77,4 +152,21 @@ func IsJSONContentType(contentType string) bool {
 	}
 
 	return true
+}
+
+var xmlContentTypes []string = []string{
+	"text/xml",
+	"application/xml",
+}
+
+func IsXMLContentType(contentType string) bool {
+	// there are some janky APIs out there
+	normalizedContentType := strings.TrimSpace(strings.ToLower(contentType))
+
+	for _, xmlContentType := range xmlContentTypes {
+		if strings.HasPrefix(normalizedContentType, xmlContentType) {
+			return true
+		}
+	}
+	return false
 }

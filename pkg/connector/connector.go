@@ -92,8 +92,12 @@ func New(ctx context.Context, workspaces []string, auth uhttp.AuthCredentials) (
 		return nil, fmt.Errorf("bitbucket-connector: failed to get http client: %w", err)
 	}
 
+	client, err := bitbucket.NewClient(ctx, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	return &Bitbucket{
-		client:     bitbucket.NewClient(httpClient),
+		client:     client,
 		workspaces: workspaces,
 	}, nil
 }

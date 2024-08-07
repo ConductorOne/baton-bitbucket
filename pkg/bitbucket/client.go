@@ -49,12 +49,15 @@ type Client struct {
 	workspaceIDs map[string]bool
 }
 
-func NewClient(httpClient *http.Client) *Client {
-	wrapper := uhttp.NewBaseHttpClient(httpClient)
+func NewClient(ctx context.Context, httpClient *http.Client) (*Client, error) {
+	wrapper, err := uhttp.NewBaseHttpClientWithContext(ctx, httpClient)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Client{
 		wrapper: wrapper,
-	}
+	}, nil
 }
 
 type LoginResponse struct {

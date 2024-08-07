@@ -1,44 +1,33 @@
 package main
 
 import (
-	"context"
-	"fmt"
-
-	"github.com/conductorone/baton-sdk/pkg/cli"
-	"github.com/spf13/cobra"
+	"github.com/conductorone/baton-sdk/pkg/field"
 )
 
-// config defines the external configuration required for the connector to run.
-type config struct {
-	cli.BaseConfig `mapstructure:",squash"` // Puts the base config options in the same place as the connector options
+var (
+	usernameField       = field.StringField("username", field.WithDescription("Username of administrator used to connect to the BitBucket API."))
+	passwordField       = field.StringField("app-password", field.WithDescription("Application password used to connect to the BitBucket API."))
+	tokenField          = field.StringField("token", field.WithDescription("Access token (workspace or project scoped) used to connect to the BitBucket API."))
+	consumerKeyField    = field.StringField("consumer-key", field.WithDescription("OAuth consumer key used to connect to the BitBucket API via oauth."))
+	consumerSecretField = field.StringField("consumer-secret", field.WithDescription("The consumer secret used to connect to the BitBucket API via oauth."))
+	workspacesField     = field.StringSliceField("workspaces", field.WithDescription("Limit syncing to specific workspaces by specifying workspace slugs."))
+)
 
-	Workspaces     []string `mapstructure:"workspaces"`
-	AccessToken    string   `mapstructure:"token"`
-	Username       string   `mapstructure:"username"`
-	Password       string   `mapstructure:"app-password"`
-	ConsumerId     string   `mapstructure:"consumer-key"`
-	ConsumerSecret string   `mapstructure:"consumer-secret"`
+var configFields = []field.SchemaField{
+	usernameField,
+	passwordField,
+	tokenField,
+	consumerKeyField,
+	consumerSecretField,
+	workspacesField,
 }
 
-// validateConfig is run after the configuration is loaded, and should return an error if it isn't valid.
-func validateConfig(ctx context.Context, cfg *config) error {
-	accessTokenNotSet := (cfg.AccessToken == "")
-	basicNotSet := (cfg.Username == "" || cfg.Password == "")
-	oauthNotSet := (cfg.ConsumerId == "" || cfg.ConsumerSecret == "")
-
-	if accessTokenNotSet && basicNotSet && oauthNotSet {
-		return fmt.Errorf("either an access token, username and password or consumer key and secret must be provided")
-	}
-
-	return nil
+var configRelations = []field.SchemaFieldRelationship{
+	field.FieldsRequiredTogether(usernameField, passwordField),
+	field.FieldsRequiredTogether(consumerKeyField, consumerSecretField),
 }
 
-// cmdFlags sets the cmdFlags required for the connector.
-func cmdFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().String("token", "", "Access token (workspace or project scoped) used to connect to the BitBucket API. ($BATON_TOKEN)")
-	cmd.PersistentFlags().String("username", "", "Username of administrator used to connect to the BitBucket API. ($BATON_USERNAME)")
-	cmd.PersistentFlags().String("app-password", "", "Application password used to connect to the BitBucket API. ($BATON_APP_PASSWORD)")
-	cmd.PersistentFlags().String("consumer-key", "", "OAuth consumer key used to connect to the BitBucket API via oauth. ($BATON_CONSUMER_ID)")
-	cmd.PersistentFlags().String("consumer-secret", "", "The consumer secret used to connect to the BitBucket API via oauth. ($BATON_CONSUMER_SECRET)")
-	cmd.PersistentFlags().StringSlice("workspaces", []string{}, "Limit syncing to specific workspaces by specifying workspace slugs. ($BATON_WORKSPACES)")
+var cfg = field.Configuration{
+	Fields:      configFields,
+	Constraints: configRelations,
 }

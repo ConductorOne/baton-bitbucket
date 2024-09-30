@@ -40,6 +40,8 @@ var (
 	configRelations = []field.SchemaFieldRelationship{
 		field.FieldsRequiredTogether(UsernameField, PasswordField),
 		field.FieldsRequiredTogether(ConsumerKeyField, ConsumerSecretField),
+		field.FieldsAtLeastOneUsed(TokenField, UsernameField, ConsumerKeyField),
+		field.FieldsMutuallyExclusive(TokenField, UsernameField, ConsumerKeyField),
 	}
 	ConfigurationSchema = field.Configuration{
 		Fields:      configFields,

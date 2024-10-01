@@ -5,12 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	mapset "github.com/deckarep/golang-set/v2"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
-	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -72,16 +69,6 @@ type ListResponse[T any] struct {
 	PaginationData
 }
 
-type errorResponse struct {
-	Error struct {
-		Message string `json:"message"`
-	} `json:"error"`
-}
-
-func (er *errorResponse) Message() string {
-	return fmt.Sprintf("Error: %s", er.Error.Message)
-}
-
 type UpdatePermissionPayload struct {
 	Permission string `json:"permission"`
 }
@@ -117,125 +104,6 @@ func (c *Client) WorkspaceId() (string, error) {
 	return "", status.Error(codes.InvalidArgument, "client is not workspace scoped")
 }
 
-func isPermissionDeniedErr(err error) bool {
-	e, ok := status.FromError(err)
-	if ok && e.Code() == codes.PermissionDenied {
-		return true
-	}
-	// In most cases the error code is unknown and the error message contains "status 403".
-	if (!ok || e.Code() == codes.Unknown) && strings.Contains(err.Error(), "status 403") {
-		return true
-	}
-	return false
-}
-
-// checkPermissions given a workspace, use the API to check if we have
-// permissions to get usergroups, members, and projects.
-func (c *Client) checkPermissions(ctx context.Context, workspace *Workspace) (bool, error) {
-	l := ctxzap.Extract(ctx)
-	logMissingPermission := func(obj string, err error) {
-		l.Error(
-			"missing permission to list object in workspace",
-			zap.String("workspace", workspace.Slug),
-			zap.String("workspace id", workspace.Id),
-			zap.String("object", obj),
-			zap.Error(err),
-		)
-	}
-	paginationVars := PaginationVars{
-		Limit: 1,
-		Page:  "",
-	}
-	_, err := c.GetWorkspaceUserGroups(ctx, workspace.Id)
-	if err != nil {
-		if isPermissionDeniedErr(err) {
-			logMissingPermission("userGroups", err)
-			return false, nil
-		}
-		return false, err
-	}
-	_, _, err = c.GetWorkspaceMembers(ctx, workspace.Id, paginationVars)
-	if err != nil {
-		if isPermissionDeniedErr(err) {
-			logMissingPermission("users", err)
-			return false, nil
-		}
-		return false, err
-	}
-	_, _, err = c.GetWorkspaceProjects(ctx, workspace.Id, paginationVars)
-	if err != nil {
-		if isPermissionDeniedErr(err) {
-			logMissingPermission("projects", err)
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
-}
-
-// filterWorkspaces given a list of workspaces, filter down to a list of
-// workspaces that have been explicitly selected in configs.
-func (c *Client) filterWorkspaces(ctx context.Context, workspaces []Workspace) ([]Workspace, error) {
-	filteredWorkspaces := make([]Workspace, 0)
-	for _, workspace := range workspaces {
-		// We call this function in order to initialize the workspaceID's map.
-		// In that case we need to return all workspaces, so they can be
-		// filtered and only the valid ones are set in the workspaceIds map.
-		if shouldIncludeWorkspace(c.workspaceIDs, workspace.Id) {
-			filteredWorkspaces = append(filteredWorkspaces, workspace)
-		}
-	}
-
-	return filteredWorkspaces, nil
-}
-
-// shouldIncludeWorkspace given a set of `workspaceIdentifiers` (i.e. a set of
-// slugs or a set of IDs), determine whether an workspaceIdentifier is in the
-// set.
-func shouldIncludeWorkspace(
-	workspaceIdentifiers mapset.Set[string],
-	workspaceIdentifier string,
-) bool {
-	if workspaceIdentifiers.Cardinality() == 0 {
-		// If none are selected, then we want _all_ workspaces.
-		return true
-	}
-	return workspaceIdentifiers.Contains(workspaceIdentifier)
-}
-
-// SetWorkspaceIDs If client has access to multiple workspaces, method
-// WorkspaceIDs` sets `c.workspaceIDs` to a list of workspace ids. Otherwise,
-// it returns error.
-func (c *Client) SetWorkspaceIDs(ctx context.Context, workspaceSlugs []string) error {
-	wantedWorkspaceSlugs := mapset.NewSet(workspaceSlugs...)
-
-	if !c.IsUserScoped() {
-		return status.Error(codes.InvalidArgument, "client is not user scoped")
-	}
-
-	workspaces, err := c.GetAllWorkspaces(ctx)
-	if err != nil {
-		return err
-	}
-
-	for _, workspace := range workspaces {
-		if shouldIncludeWorkspace(wantedWorkspaceSlugs, workspace.Slug) {
-			hasPermission, err := c.checkPermissions(ctx, &workspace)
-			if err != nil {
-				return err
-			}
-			if hasPermission {
-				c.workspaceIDs.Add(workspace.Id)
-			}
-		}
-	}
-
-	if c.workspaceIDs.Cardinality() == 0 {
-		return status.Error(codes.Unauthenticated, "no authenticated workspaces found")
-	}
-	return nil
-}
-
 // GetWorkspaces lists all workspaces current user belongs to.
 func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars PaginationVars) ([]Workspace, string, error) {
 	var workspacesResponse ListResponse[Workspace]
@@ -252,7 +120,7 @@ func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars Pagination
 		return nil, "", err
 	}
 	workspacesResponse.Values, err = c.filterWorkspaces(ctx, workspacesResponse.Values)
-	return handlePagination(workspacesResponse, err)
+	return HandlePagination(workspacesResponse, err)
 }
 
 // GetAllWorkspaces lists all workspaces looping through all pages.
@@ -280,14 +148,6 @@ func (c *Client) GetAllWorkspaces(ctx context.Context) ([]Workspace, error) {
 	}
 
 	return allWorkspaces, nil
-}
-
-func (c *Client) getUrl(path string, args ...string) *url.URL {
-	escapedArgs := make([]string, 0)
-	for _, arg := range args {
-		escapedArgs = append(escapedArgs, url.PathEscape(arg))
-	}
-	return c.baseUrl.JoinPath(fmt.Sprintf(path, escapedArgs))
 }
 
 // GetWorkspace get specific workspace based on provided id.
@@ -331,7 +191,7 @@ func (c *Client) GetWorkspaceMembers(
 		return nil, "", err
 	}
 
-	members, page, _ := handlePagination(workspaceMembersResponse, nil)
+	members, page, _ := HandlePagination(workspaceMembersResponse, nil)
 
 	return mapUsers(members), page, nil
 }
@@ -448,7 +308,7 @@ func (c *Client) GetWorkspaceProjects(
 			prepareFilters("", "-*.workspace", "-*.owner"),
 		},
 	)
-	return handlePagination(workspaceProjectsResponse, err)
+	return HandlePagination(workspaceProjectsResponse, err)
 }
 
 // GetAllWorkspaceProjects lists all projects looping through all pages.
@@ -499,7 +359,7 @@ func (c *Client) GetProjectRepos(
 			),
 		},
 	)
-	return handlePagination(projectRepositoriesResponse, err)
+	return HandlePagination(projectRepositoriesResponse, err)
 }
 
 // GetAllProjectRepos lists all repositories looping through all pages.
@@ -546,7 +406,7 @@ func (c *Client) GetProjectGroupPermissions(
 			prepareFilters("", "-*.*.workspace", "-*.*.owner"),
 		},
 	)
-	return handlePagination(projectGroupPermissionsResponse, err)
+	return HandlePagination(projectGroupPermissionsResponse, err)
 }
 
 // GetProjectGroupPermission returns group permission of specific group under provided project.
@@ -632,7 +492,7 @@ func (c *Client) GetProjectUserPermissions(
 			prepareFilters(""),
 		},
 	)
-	return handlePagination(projectUserPermissionsResponse, err)
+	return HandlePagination(projectUserPermissionsResponse, err)
 }
 
 // GetProjectUserPermission returns user permission of specific user under provided project.
@@ -719,7 +579,7 @@ func (c *Client) GetRepositoryGroupPermissions(
 		},
 	)
 
-	return handlePagination(repositoryGroupPermissionsResponse, err)
+	return HandlePagination(repositoryGroupPermissionsResponse, err)
 }
 
 // GetRepoGroupPermission returns group permission of specific group under provided repository.
@@ -790,7 +650,7 @@ func (c *Client) GetRepositoryUserPermissions(
 			prepareFilters(""),
 		},
 	)
-	return handlePagination(repositoryUserPermissionsResponse, err)
+	return HandlePagination(repositoryUserPermissionsResponse, err)
 }
 
 // GetRepoUserPermission returns user permission of specific user under provided repository.
@@ -859,119 +719,6 @@ func (c *Client) DeleteRepoUserPermission(
 	)
 }
 
-func (c *Client) delete(ctx context.Context, url *url.URL) error {
-	req, err := c.createRequest(ctx, url, http.MethodDelete, nil, nil)
-	if err != nil {
-		return err
-	}
-
-	var errRes errorResponse
-	r, err := c.wrapper.Do(req, uhttp.WithErrorResponse(&errRes))
-	if err != nil {
-		return err
-	}
-
-	defer r.Body.Close()
-
-	return nil
-}
-
-func (c *Client) get(
-	ctx context.Context,
-	url *url.URL,
-	resourceResponse interface{},
-	paramOptions []QueryParam,
-) error {
-	req, err := c.createRequest(ctx, url, http.MethodGet, nil, paramOptions)
-	if err != nil {
-		return err
-	}
-
-	var errRes errorResponse
-	r, err := c.wrapper.Do(
-		req,
-		uhttp.WithErrorResponse(&errRes),
-		uhttp.WithJSONResponse(resourceResponse),
-	)
-	if err != nil {
-		return err
-	}
-
-	defer r.Body.Close()
-
-	return nil
-}
-
-func (c *Client) put(ctx context.Context, url *url.URL, data, resourceResponse interface{}, paramOptions []QueryParam) error {
-	request, err := c.createRequest(ctx, url, http.MethodPut, data, paramOptions)
-	if err != nil {
-		return err
-	}
-
-	var errRes errorResponse
-	r, err := c.wrapper.Do(
-		request,
-		uhttp.WithErrorResponse(&errRes),
-		uhttp.WithJSONResponse(resourceResponse),
-	)
-	if err != nil {
-		return err
-	}
-
-	defer r.Body.Close()
-
-	return nil
-}
-
-func (c *Client) createRequest(
-	ctx context.Context,
-	url0 *url.URL,
-	method string,
-	data interface{},
-	paramOptions []QueryParam,
-) (*http.Request, error) {
-	opts := []uhttp.RequestOption{
-		uhttp.WithAcceptJSONHeader(),
-	}
-	if data != nil {
-		opts = append(opts, uhttp.WithJSONBody(data))
-	}
-
-	request, err := c.wrapper.NewRequest(
-		ctx,
-		method,
-		url0,
-		opts...,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if paramOptions != nil {
-		queryParams := url.Values{}
-		for _, q := range paramOptions {
-			q.setup(&queryParams)
-		}
-
-		request.URL.RawQuery = queryParams.Encode()
-	}
-
-	return request, nil
-}
-
-func handlePagination[T any](response ListResponse[T], err error) ([]T, string, error) {
-	if err != nil {
-		return nil, "", err
-	}
-
-	nextToken := ""
-	if response.PaginationData.Next != "" {
-		nextToken = parsePageFromURL(response.PaginationData.Next)
-	}
-
-	return response.Values, nextToken, nil
-}
-
 func mapUsers(members []WorkspaceMember) []User {
 	var users []User
 
@@ -980,17 +727,4 @@ func mapUsers(members []WorkspaceMember) []User {
 	}
 
 	return users
-}
-
-func parsePageFromURL(urlPayload string) string {
-	if urlPayload == "" {
-		return ""
-	}
-
-	u, err := url.Parse(urlPayload)
-	if err != nil {
-		return ""
-	}
-
-	return u.Query().Get("page")
 }

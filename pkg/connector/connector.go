@@ -44,13 +44,13 @@ var (
 )
 
 type Bitbucket struct {
-	client     *bitbucket.Client
-	workspaces []string
+	client         *bitbucket.Client
+	workspaceSlugs []string
 }
 
 func (bb *Bitbucket) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
-		workspaceBuilder(bb.client, bb.workspaces),
+		workspaceBuilder(bb.client, bb.workspaceSlugs),
 		projectBuilder(bb.client),
 		userBuilder(bb.client),
 		userGroupBuilder(bb.client),
@@ -78,7 +78,7 @@ func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, err
 	}
 
 	if bb.client.IsUserScoped() {
-		err = bb.client.SetWorkspaceIDs(ctx, bb.workspaces)
+		err = bb.client.SetWorkspaceIDs(ctx, bb.workspaceSlugs)
 		if err != nil {
 			return nil, fmt.Errorf("bitbucket-connector: failed to get workspace ids: %w", err)
 		}
@@ -86,7 +86,11 @@ func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, err
 	return nil, nil
 }
 
-func New(ctx context.Context, workspaces []string, auth uhttp.AuthCredentials) (*Bitbucket, error) {
+func New(
+	ctx context.Context,
+	workspaceSlugs []string,
+	auth uhttp.AuthCredentials,
+) (*Bitbucket, error) {
 	httpClient, err := auth.GetClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("bitbucket-connector: failed to get http client: %w", err)
@@ -97,8 +101,8 @@ func New(ctx context.Context, workspaces []string, auth uhttp.AuthCredentials) (
 		return nil, err
 	}
 	return &Bitbucket{
-		client:     client,
-		workspaces: workspaces,
+		client:         client,
+		workspaceSlugs: workspaceSlugs,
 	}, nil
 }
 

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/conductorone/baton-bitbucket/pkg/config"
 	"github.com/conductorone/baton-bitbucket/pkg/connector"
 	configschema "github.com/conductorone/baton-sdk/pkg/config"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
@@ -17,8 +18,9 @@ import (
 )
 
 var (
-	version  = "dev"
-	LoginURL = &url.URL{
+	version       = "dev"
+	connectorName = "baton-bitbucket"
+	LoginURL      = &url.URL{
 		Scheme: "https",
 		Host:   "bitbucket.org",
 		Path:   "/site/oauth2/access_token",
@@ -28,7 +30,12 @@ var (
 func main() {
 	ctx := context.Background()
 
-	_, cmd, err := configschema.DefineConfiguration(ctx, "baton-bitbucket", getConnector, cfg)
+	_, cmd, err := configschema.DefineConfiguration(
+		ctx,
+		connectorName,
+		getConnector,
+		config.ConfigurationSchema,
+	)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
@@ -44,11 +51,11 @@ func main() {
 }
 
 func constructAuth(v *viper.Viper) (uhttp.AuthCredentials, error) {
-	accessToken := v.GetString(tokenField.FieldName)
-	username := v.GetString(usernameField.FieldName)
-	password := v.GetString(passwordField.FieldName)
-	consumerId := v.GetString(consumerKeyField.FieldName)
-	consumerSecret := v.GetString(consumerSecretField.FieldName)
+	accessToken := v.GetString(config.TokenField.FieldName)
+	username := v.GetString(config.UsernameField.FieldName)
+	password := v.GetString(config.PasswordField.FieldName)
+	consumerId := v.GetString(config.ConsumerKeyField.FieldName)
+	consumerSecret := v.GetString(config.ConsumerSecretField.FieldName)
 
 	if accessToken != "" {
 		return uhttp.NewBearerAuth(accessToken), nil
@@ -73,16 +80,15 @@ func constructAuth(v *viper.Viper) (uhttp.AuthCredentials, error) {
 func getConnector(ctx context.Context, v *viper.Viper) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
 
-	accessToken := v.GetString(tokenField.FieldName)
+	accessToken := v.GetString(config.TokenField.FieldName)
 	accessTokenNotSet := (accessToken == "")
-	username := v.GetString(usernameField.FieldName)
-	password := v.GetString(passwordField.FieldName)
-	consumerId := v.GetString(consumerKeyField.FieldName)
-	consumerSecret := v.GetString(consumerSecretField.FieldName)
-	workspaces := v.GetStringSlice(workspacesField.FieldName)
+	username := v.GetString(config.UsernameField.FieldName)
+	password := v.GetString(config.PasswordField.FieldName)
+	consumerId := v.GetString(config.ConsumerKeyField.FieldName)
+	consumerSecret := v.GetString(config.ConsumerSecretField.FieldName)
 
-	basicNotSet := (username == "" || password == "")
-	oauthNotSet := (consumerId == "" || consumerSecret == "")
+	basicNotSet := username == "" || password == ""
+	oauthNotSet := consumerId == "" || consumerSecret == ""
 
 	if accessTokenNotSet && basicNotSet && oauthNotSet {
 		return nil, fmt.Errorf("either an access token, username and password or consumer key and secret must be provided")
@@ -94,7 +100,11 @@ func getConnector(ctx context.Context, v *viper.Viper) (types.ConnectorServer, e
 		return nil, err
 	}
 
-	bitbucketConnector, err := connector.New(ctx, workspaces, auth)
+	bitbucketConnector, err := connector.New(
+		ctx,
+		v.GetStringSlice(config.WorkspacesField.FieldName),
+		auth,
+	)
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
 		return nil, err

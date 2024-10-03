@@ -22,7 +22,7 @@ func TestConfigs(t *testing.T) {
 				"username":        "1",
 				"workspaces":      "1",
 			},
-			true,
+			false,
 			"in conflict",
 		},
 		{

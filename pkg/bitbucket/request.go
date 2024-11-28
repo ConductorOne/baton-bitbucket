@@ -1,9 +1,14 @@
 package bitbucket
 
 import (
+	"context"
+	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 )
 
 type QueryParam interface {
@@ -69,4 +74,117 @@ func prepareFilters(searchId string, filters ...string) *FilterVars {
 		SearchId: id,
 		Fields:   fs,
 	}
+}
+
+func (c *Client) getUrl(path string, args ...string) *url.URL {
+	escapedArgs := make([]string, 0)
+	for _, arg := range args {
+		escapedArgs = append(escapedArgs, url.PathEscape(arg))
+	}
+	return c.baseUrl.JoinPath(fmt.Sprintf(path, escapedArgs))
+}
+
+func (c *Client) delete(ctx context.Context, url *url.URL) error {
+	req, err := c.createRequest(ctx, url, http.MethodDelete, nil, nil)
+	if err != nil {
+		return err
+	}
+
+	var errRes errorResponse
+	r, err := c.wrapper.Do(req, uhttp.WithErrorResponse(&errRes))
+	if err != nil {
+		return err
+	}
+
+	defer r.Body.Close()
+
+	return nil
+}
+
+func (c *Client) get(
+	ctx context.Context,
+	url *url.URL,
+	resourceResponse interface{},
+	paramOptions []QueryParam,
+) error {
+	req, err := c.createRequest(ctx, url, http.MethodGet, nil, paramOptions)
+	if err != nil {
+		return err
+	}
+
+	var errRes errorResponse
+	r, err := c.wrapper.Do(
+		req,
+		uhttp.WithErrorResponse(&errRes),
+		uhttp.WithJSONResponse(resourceResponse),
+	)
+	if err != nil {
+		return err
+	}
+
+	defer r.Body.Close()
+
+	return nil
+}
+
+func (c *Client) put(
+	ctx context.Context,
+	url *url.URL,
+	data, resourceResponse interface{},
+	paramOptions []QueryParam,
+) error {
+	request, err := c.createRequest(ctx, url, http.MethodPut, data, paramOptions)
+	if err != nil {
+		return err
+	}
+
+	var errRes errorResponse
+	r, err := c.wrapper.Do(
+		request,
+		uhttp.WithErrorResponse(&errRes),
+		uhttp.WithJSONResponse(resourceResponse),
+	)
+	if err != nil {
+		return err
+	}
+
+	defer r.Body.Close()
+
+	return nil
+}
+
+func (c *Client) createRequest(
+	ctx context.Context,
+	url0 *url.URL,
+	method string,
+	data interface{},
+	paramOptions []QueryParam,
+) (*http.Request, error) {
+	opts := []uhttp.RequestOption{
+		uhttp.WithAcceptJSONHeader(),
+	}
+	if data != nil {
+		opts = append(opts, uhttp.WithJSONBody(data))
+	}
+
+	request, err := c.wrapper.NewRequest(
+		ctx,
+		method,
+		url0,
+		opts...,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if paramOptions != nil {
+		queryParams := url.Values{}
+		for _, q := range paramOptions {
+			q.setup(&queryParams)
+		}
+
+		request.URL.RawQuery = queryParams.Encode()
+	}
+
+	return request, nil
 }

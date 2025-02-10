@@ -5,15 +5,17 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
+
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 
 	v1 "github.com/conductorone/baton-sdk/pb/c1/connectorapi/baton/v1"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	sdkSync "github.com/conductorone/baton-sdk/pkg/sync"
 	"github.com/conductorone/baton-sdk/pkg/tasks"
 	"github.com/conductorone/baton-sdk/pkg/types"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
 )
 
 type fullSyncHelpers interface {
@@ -31,6 +33,9 @@ type fullSyncTaskHandler struct {
 }
 
 func (c *fullSyncTaskHandler) sync(ctx context.Context, c1zPath string) error {
+	ctx, span := tracer.Start(ctx, "fullSyncTaskHandler.sync")
+	defer span.End()
+
 	l := ctxzap.Extract(ctx).With(zap.String("task_id", c.task.GetId()), zap.Stringer("task_type", tasks.GetType(c.task)))
 
 	syncOpts := []sdkSync.SyncOpt{
@@ -79,6 +84,9 @@ func (c *fullSyncTaskHandler) sync(ctx context.Context, c1zPath string) error {
 // task with a sync_id and it doesn't match our current state sync_id, we should reject the task. If we have a task
 // with a sync_id that does match our current state, we should resume our current sync, if possible.
 func (c *fullSyncTaskHandler) HandleTask(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "fullSyncTaskHandler.HandleTask")
+	defer span.End()
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	l := ctxzap.Extract(ctx).With(zap.String("task_id", c.task.GetId()), zap.Stringer("task_type", tasks.GetType(c.task)))
@@ -130,6 +138,11 @@ func (c *fullSyncTaskHandler) HandleTask(ctx context.Context) error {
 		return c.helpers.FinishTask(ctx, nil, nil, err)
 	}
 
+	err = uploadDebugLogs(ctx, c.helpers)
+	if err != nil {
+		return c.helpers.FinishTask(ctx, nil, nil, err)
+	}
+
 	return c.helpers.FinishTask(ctx, nil, nil, nil)
 }
 
@@ -138,5 +151,44 @@ func newFullSyncTaskHandler(task *v1.Task, helpers fullSyncHelpers, skipFullSync
 		task:         task,
 		helpers:      helpers,
 		skipFullSync: skipFullSync,
+	}
+}
+
+func uploadDebugLogs(ctx context.Context, helper fullSyncHelpers) error {
+	ctx, span := tracer.Start(ctx, "uploadDebugLogs")
+	defer span.End()
+
+	l := ctxzap.Extract(ctx)
+
+	debugfilelocation := filepath.Join(helper.TempDir(), "debug.log")
+
+	_, err := os.Stat(debugfilelocation)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			l.Warn("debug log file does not exists", zap.Error(err))
+			return nil
+		}
+		return err
+	} else {
+		debugfile, err := os.Open(debugfilelocation)
+		if err != nil {
+			return err
+		}
+		defer debugfile.Close()
+
+		l.Info("uploading debug logs", zap.String("file", debugfilelocation))
+		err = helper.Upload(ctx, debugfile)
+
+		if err != nil {
+			return err
+		}
+		defer func() {
+			err := os.Remove(debugfilelocation)
+			if err != nil {
+				l.Error("failed to delete file with debug logs", zap.Error(err), zap.String("file", debugfilelocation))
+			}
+		}()
+
+		return nil
 	}
 }

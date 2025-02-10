@@ -6,13 +6,13 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/conductorone/baton-bitbucket/pkg/config"
 	"github.com/conductorone/baton-bitbucket/pkg/connector"
 	configschema "github.com/conductorone/baton-sdk/pkg/config"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/types"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
@@ -28,7 +28,7 @@ var (
 func main() {
 	ctx := context.Background()
 
-	_, cmd, err := configschema.DefineConfiguration(ctx, "baton-bitbucket", getConnector, cfg)
+	_, cmd, err := configschema.DefineConfiguration(ctx, "baton-bitbucket", getConnector, config.Config)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
@@ -43,12 +43,12 @@ func main() {
 	}
 }
 
-func constructAuth(v *viper.Viper) (uhttp.AuthCredentials, error) {
-	accessToken := v.GetString(tokenField.FieldName)
-	username := v.GetString(usernameField.FieldName)
-	password := v.GetString(passwordField.FieldName)
-	consumerId := v.GetString(consumerKeyField.FieldName)
-	consumerSecret := v.GetString(consumerSecretField.FieldName)
+func constructAuth(v *config.Bitbucket) (uhttp.AuthCredentials, error) {
+	accessToken := v.GetString(config.TokenField.FieldName)
+	username := v.GetString(config.UsernameField.FieldName)
+	password := v.GetString(config.PasswordField.FieldName)
+	consumerId := v.GetString(config.ConsumerKeyField.FieldName)
+	consumerSecret := v.GetString(config.ConsumerSecretField.FieldName)
 
 	if accessToken != "" {
 		return uhttp.NewBearerAuth(accessToken), nil
@@ -70,16 +70,16 @@ func constructAuth(v *viper.Viper) (uhttp.AuthCredentials, error) {
 	return nil, fmt.Errorf("invalid config")
 }
 
-func getConnector(ctx context.Context, v *viper.Viper) (types.ConnectorServer, error) {
+func getConnector(ctx context.Context, v *config.Bitbucket) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
 
-	accessToken := v.GetString(tokenField.FieldName)
+	accessToken := v.GetString(config.TokenField.FieldName)
 	accessTokenNotSet := (accessToken == "")
-	username := v.GetString(usernameField.FieldName)
-	password := v.GetString(passwordField.FieldName)
-	consumerId := v.GetString(consumerKeyField.FieldName)
-	consumerSecret := v.GetString(consumerSecretField.FieldName)
-	workspaces := v.GetStringSlice(workspacesField.FieldName)
+	username := v.GetString(config.UsernameField.FieldName)
+	password := v.GetString(config.PasswordField.FieldName)
+	consumerId := v.GetString(config.ConsumerKeyField.FieldName)
+	consumerSecret := v.GetString(config.ConsumerSecretField.FieldName)
+	workspaces := v.GetStringSlice(config.WorkspacesField.FieldName)
 
 	basicNotSet := (username == "" || password == "")
 	oauthNotSet := (consumerId == "" || consumerSecret == "")

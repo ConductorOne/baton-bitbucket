@@ -88,11 +88,11 @@ Available Commands:
   help               Help about any command
 
 Flags:
-      --app-password string      Application password used to connect to the BitBucket API. ($BATON_APP_PASSWORD)
+      --app-password string      Application password used to connect to the Bitbucket API. ($BATON_APP_PASSWORD)
       --client-id string         The client ID used to authenticate with ConductorOne ($BATON_CLIENT_ID)
       --client-secret string     The client secret used to authenticate with ConductorOne ($BATON_CLIENT_SECRET)
-      --consumer-key string      OAuth consumer key used to connect to the BitBucket API via oauth. ($BATON_CONSUMER_KEY)
-      --consumer-secret string   The consumer secret used to connect to the BitBucket API via oauth. ($BATON_CONSUMER_SECRET)
+      --consumer-key string      OAuth consumer key used to connect to the Bitbucket API via oauth. ($BATON_CONSUMER_KEY)
+      --consumer-secret string   The consumer secret used to connect to the Bitbucket API via oauth. ($BATON_CONSUMER_SECRET)
   -f, --file string              The path to the c1z file to sync with ($BATON_FILE) (default "sync.c1z")
   -h, --help                     help for baton-bitbucket
       --log-format string        The output format for logs: json, console ($BATON_LOG_FORMAT) (default "json")
@@ -100,8 +100,8 @@ Flags:
   -p, --provisioning             This must be set in order for provisioning actions to be enabled ($BATON_PROVISIONING)
       --skip-full-sync           This must be set to skip a full sync ($BATON_SKIP_FULL_SYNC)
       --ticketing                This must be set to enable ticketing support ($BATON_TICKETING)
-      --token string             Access token (workspace or project scoped) used to connect to the BitBucket API. ($BATON_TOKEN)
-      --username string          Username of administrator used to connect to the BitBucket API. ($BATON_USERNAME)
+      --token string             Access token (workspace or project scoped) used to connect to the Bitbucket API. ($BATON_TOKEN)
+      --username string          Username of administrator used to connect to the Bitbucket API. ($BATON_USERNAME)
   -v, --version                  version for baton-bitbucket
       --workspaces strings       Limit syncing to specific workspaces by specifying workspace slugs. ($BATON_WORKSPACES)
 

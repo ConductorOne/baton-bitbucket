@@ -8,30 +8,30 @@ var (
 	UsernameField = field.StringField(
 		"username",
 		field.WithDisplayName("Username"),
-		field.WithDescription("Username of administrator used to connect to the BitBucket API."),
+		field.WithDescription("Username of administrator used to connect to the Bitbucket API."),
 		field.WithRequired(true),
 	)
 	PasswordField = field.StringField(
 		"app-password",
 		field.WithDisplayName("API Token/App Password"),
-		field.WithDescription("The scoped API token or application password (deprecated) used to connect to the BitBucket API."),
+		field.WithDescription("The scoped API token or application password (deprecated) used to connect to the Bitbucket API."),
 		field.WithIsSecret(true),
 	)
 	TokenField = field.StringField(
 		"token",
 		field.WithDisplayName("Access token"),
-		field.WithDescription("Access token (workspace or project scoped) used to connect to the BitBucket API."),
+		field.WithDescription("Access token (workspace or project scoped) used to connect to the Bitbucket API."),
 		field.WithIsSecret(true),
 	)
 	ConsumerKeyField = field.StringField(
 		"consumer-key",
 		field.WithDisplayName("Consumer key"),
-		field.WithDescription("OAuth consumer key used to connect to the BitBucket API via oauth."),
+		field.WithDescription("OAuth consumer key used to connect to the Bitbucket API via oauth."),
 	)
 	ConsumerSecretField = field.StringField(
 		"consumer-secret",
 		field.WithDisplayName("Consumer Secret"),
-		field.WithDescription("The consumer secret used to connect to the BitBucket API via oauth."),
+		field.WithDescription("The consumer secret used to connect to the Bitbucket API via oauth."),
 		field.WithIsSecret(true),
 	)
 	WorkspacesField = field.StringSliceField(
@@ -57,7 +57,7 @@ var ConfigRelations = []field.SchemaFieldRelationship{
 //go:generate go run ./gen
 var Config = field.NewConfiguration(ConfigurationFields,
 	field.WithConstraints(ConfigRelations...),
-	field.WithConnectorDisplayName("BitBucket"),
+	field.WithConnectorDisplayName("Bitbucket"),
 	field.WithHelpUrl("/docs/baton/bitbucket"),
 	field.WithIconUrl("/static/app-icons/bitbucket.svg"),
 )

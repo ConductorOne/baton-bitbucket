@@ -4,12 +4,12 @@ jobs:
   go-lint:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
       - name: Install Go
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Checkout code
-        uses: actions/checkout@v4
       - name: Run linters
         uses: golangci/golangci-lint-action@v4
         with:
@@ -21,13 +21,13 @@ jobs:
         platform: [ubuntu-latest]
     runs-on: ${{ matrix.platform }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
       - name: Install Go
         if: success()
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Checkout code
-        uses: actions/checkout@v4
       - name: go tests
         run: go test -v -covermode=count -json ./... > test.json
       - name: annotate go tests

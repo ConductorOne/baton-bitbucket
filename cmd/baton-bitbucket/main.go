@@ -6,19 +6,20 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/conductorone/baton-bitbucket/pkg/config"
 	"github.com/conductorone/baton-bitbucket/pkg/connector"
-	configschema "github.com/conductorone/baton-sdk/pkg/config"
+	configSdk "github.com/conductorone/baton-sdk/pkg/config"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/types"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
 var (
-	version  = "dev"
-	LoginURL = &url.URL{
+	connectorName = "baton-bitbucket"
+	version       = "dev"
+	LoginURL      = &url.URL{
 		Scheme: "https",
 		Host:   "bitbucket.org",
 		Path:   "/site/oauth2/access_token",
@@ -28,7 +29,12 @@ var (
 func main() {
 	ctx := context.Background()
 
-	_, cmd, err := configschema.DefineConfiguration(ctx, "baton-bitbucket", getConnector, cfg)
+	_, cmd, err := configSdk.DefineConfiguration(
+		ctx,
+		connectorName,
+		getConnector,
+		config.Config,
+	)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
@@ -43,12 +49,12 @@ func main() {
 	}
 }
 
-func constructAuth(v *viper.Viper) (uhttp.AuthCredentials, error) {
-	accessToken := v.GetString(tokenField.FieldName)
-	username := v.GetString(usernameField.FieldName)
-	password := v.GetString(passwordField.FieldName)
-	consumerId := v.GetString(consumerKeyField.FieldName)
-	consumerSecret := v.GetString(consumerSecretField.FieldName)
+func constructAuth(cfg *config.Bitbucket) (uhttp.AuthCredentials, error) {
+	accessToken := cfg.Token
+	username := cfg.Username
+	password := cfg.AppPassword
+	consumerID := cfg.ConsumerKey
+	consumerSecret := cfg.ConsumerSecret
 
 	if accessToken != "" {
 		return uhttp.NewBearerAuth(accessToken), nil
@@ -58,9 +64,9 @@ func constructAuth(v *viper.Viper) (uhttp.AuthCredentials, error) {
 		return uhttp.NewBasicAuth(username, password), nil
 	}
 
-	if consumerId != "" {
+	if consumerID != "" {
 		return uhttp.NewOAuth2ClientCredentials(
-			consumerId,
+			consumerID,
 			consumerSecret,
 			LoginURL,
 			nil,
@@ -70,26 +76,26 @@ func constructAuth(v *viper.Viper) (uhttp.AuthCredentials, error) {
 	return nil, fmt.Errorf("invalid config")
 }
 
-func getConnector(ctx context.Context, v *viper.Viper) (types.ConnectorServer, error) {
+func getConnector(ctx context.Context, cfg *config.Bitbucket) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
 
-	accessToken := v.GetString(tokenField.FieldName)
+	accessToken := cfg.Token
 	accessTokenNotSet := (accessToken == "")
-	username := v.GetString(usernameField.FieldName)
-	password := v.GetString(passwordField.FieldName)
-	consumerId := v.GetString(consumerKeyField.FieldName)
-	consumerSecret := v.GetString(consumerSecretField.FieldName)
-	workspaces := v.GetStringSlice(workspacesField.FieldName)
+	username := cfg.Username
+	password := cfg.AppPassword
+	consumerID := cfg.ConsumerKey
+	consumerSecret := cfg.ConsumerSecret
+	workspaces := cfg.Workspaces
 
 	basicNotSet := (username == "" || password == "")
-	oauthNotSet := (consumerId == "" || consumerSecret == "")
+	oauthNotSet := (consumerID == "" || consumerSecret == "")
 
 	if accessTokenNotSet && basicNotSet && oauthNotSet {
 		return nil, fmt.Errorf("either an access token, username and password or consumer key and secret must be provided")
 	}
 
 	// compose the auth options
-	auth, err := constructAuth(v)
+	auth, err := constructAuth(cfg)
 	if err != nil {
 		return nil, err
 	}

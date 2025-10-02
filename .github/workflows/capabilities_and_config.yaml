@@ -29,9 +29,8 @@ jobs:
 
       - name: Run and save capabilities output
         env:
-          BATON_JIRA_API_TOKEN: example
-          BATON_JIRA_EMAIL: example
-          BATON_JIRA_URL: https://example.com
+          BATON_APP_PASSWORD: example
+          BATON_USERNAME: example
         run: ./connector capabilities > baton_capabilities.json
 
       - name: Commit changes

@@ -7,7 +7,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version-file: go.mod
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Run linters
@@ -18,7 +18,6 @@ jobs:
   go-test:
     strategy:
       matrix:
-        go-version: [1.22.x]
         platform: [ubuntu-latest]
     runs-on: ${{ matrix.platform }}
     steps:
@@ -26,7 +25,7 @@ jobs:
         if: success()
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version-file: go.mod
       - name: Checkout code
         uses: actions/checkout@v4
       - name: go tests

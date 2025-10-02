@@ -5,13 +5,14 @@ import (
 	"errors"
 	"runtime/debug"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"github.com/shirou/gopsutil/v4/host"
+	"go.uber.org/zap"
+
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	v1 "github.com/conductorone/baton-sdk/pb/c1/connectorapi/baton/v1"
 	"github.com/conductorone/baton-sdk/pkg/tasks"
 	"github.com/conductorone/baton-sdk/pkg/types"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
-	"github.com/shirou/gopsutil/v3/host"
-	"go.uber.org/zap"
 )
 
 type helloHelpers interface {
@@ -51,21 +52,43 @@ func (c *helloTaskHandler) osInfo(ctx context.Context) (*v1.BatonServiceHelloReq
 
 func (c *helloTaskHandler) buildInfo(ctx context.Context) *v1.BatonServiceHelloRequest_BuildInfo {
 	l := ctxzap.Extract(ctx)
+	buildInfo := &v1.BatonServiceHelloRequest_BuildInfo{
+		LangVersion:    "0.0.0",
+		Package:        "/dummy/path",
+		PackageVersion: "0.0.0",
+	}
 
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
 		l.Error("failed to get build info")
-		return &v1.BatonServiceHelloRequest_BuildInfo{}
+		return buildInfo
 	}
 
-	return &v1.BatonServiceHelloRequest_BuildInfo{
-		LangVersion:    bi.GoVersion,
-		Package:        bi.Main.Path,
-		PackageVersion: bi.Main.Version,
+	if bi.Main.Path == "" {
+		l.Warn("missing build info Main.path")
+	} else {
+		buildInfo.Package = bi.Main.Path
 	}
+
+	if bi.Main.Version == "" {
+		l.Warn("missing build info Main.version")
+	} else {
+		buildInfo.PackageVersion = bi.Main.Version
+	}
+
+	if bi.GoVersion == "" {
+		l.Warn("missing build info GoVersion")
+	} else {
+		buildInfo.LangVersion = bi.GoVersion
+	}
+
+	return buildInfo
 }
 
 func (c *helloTaskHandler) HandleTask(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "helloTaskHandler.HandleTask")
+	defer span.End()
+
 	if c.task == nil {
 		return errors.New("cannot handle task: task is nil")
 	}

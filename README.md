@@ -10,9 +10,18 @@ Check out [Baton](https://github.com/conductorone/baton) to learn more about the
 
 To work with the connector, you can choose from multiple authentication methods. You can either use an application password with login username and generated password, an API access token, or a consumer key and secret for oauth flow.
 
-Each one of these methods are configurable with permissions (Read, Write, Admin) to access the Bitbucket API. The permissions required for this connector are:
-- Read: `Workspace`, `UserGroup`, `User`, `Project`, `Repository`
-- Admin: `Project`, `Repository`
+Each one of these methods are configurable with permissions (Read, Write, Admin) to access the Bitbucket API. The following API Token access scopes are required for this connector:
+
+**Read Scopes:**
+- `read:workspace:bitbucket` - Required to read workspace details and workspace members
+- `read:user:bitbucket` - Required to read user information
+- `read:project:bitbucket` - Required to read project information
+- `read:repository:bitbucket` - Required to read repository information
+
+**Admin Scopes:**
+- `admin:workspace:bitbucket` - Required to read workspace user groups (v1.0 API) and manage group memberships
+- `admin:project:bitbucket` - Required to read and manage project permissions for users and groups
+- `admin:repository:bitbucket` - Required to read and manage repository permissions for users and groups
 
 Mentioned auth methods like API Access Tokens can be scoped to different resources, and the connector only allows the workspace-scoped token or the user-scoped password with required permissions described above.
 

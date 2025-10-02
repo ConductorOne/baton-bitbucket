@@ -13,8 +13,8 @@ var (
 	)
 	PasswordField = field.StringField(
 		"app-password",
-		field.WithDisplayName("App password"),
-		field.WithDescription("Application password used to connect to the BitBucket API."),
+		field.WithDisplayName("API Token/App Password"),
+		field.WithDescription("The Scoped API Token or Application password(deprecated) used to connect to the BitBucket API."),
 		field.WithIsSecret(true),
 	)
 	TokenField = field.StringField(

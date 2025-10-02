@@ -10,6 +10,8 @@ Check out [Baton](https://github.com/conductorone/baton) to learn more about the
 
 To work with the connector, you can choose from multiple authentication methods. You can either use an application password with login username and generated password, an API access token, or a consumer key and secret for oauth flow.
 
+> **Note:** App passwords are deprecated as of September 9, 2025, and will be fully disabled on June 9, 2026. All users should migrate to API tokens. API tokens can be used with the `--app-password` flag as a drop-in replacement.
+
 Each one of these methods are configurable with permissions (Read, Write, Admin) to access the Bitbucket API. The following API Token access scopes are required for this connector:
 
 **Read Scopes:**

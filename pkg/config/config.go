@@ -26,12 +26,12 @@ var (
 	ConsumerKeyField = field.StringField(
 		"consumer-key",
 		field.WithDisplayName("Consumer key"),
-		field.WithDescription("OAuth consumer key used to connect to the Bitbucket API via oauth."),
+		field.WithDescription("OAuth consumer key used to connect to the Bitbucket API via OAuth."),
 	)
 	ConsumerSecretField = field.StringField(
 		"consumer-secret",
 		field.WithDisplayName("Consumer Secret"),
-		field.WithDescription("The consumer secret used to connect to the Bitbucket API via oauth."),
+		field.WithDescription("The consumer secret used to connect to the Bitbucket API via OAuth."),
 		field.WithIsSecret(true),
 	)
 	WorkspacesField = field.StringSliceField(

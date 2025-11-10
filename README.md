@@ -54,6 +54,8 @@ baton resources
 - Projects
 - Repositories
 
+**Note:** Deactivated users will not appear in the sync as they are excluded from the Bitbucket API responses.
+
 By default, `baton-bitbucket` will sync information from workspaces based on provided credential. You can specify exactly which workspaces you would like to sync using the `--workspaces` flag.
 
 # Contributing, Support and Issues

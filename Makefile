@@ -8,9 +8,16 @@ else
 OUTPUT_PATH = ${BUILD_DIR}/baton-bitbucket
 endif
 
+# Set the build tag conditionally based on BATON_LAMBDA_SUPPORT
+ifdef BATON_LAMBDA_SUPPORT
+	BUILD_TAGS=-tags baton_lambda_support
+else
+	BUILD_TAGS=
+endif
+
 .PHONY: build
 build:
-	go build -o ${OUTPUT_PATH} ./cmd/baton-bitbucket
+	go build ${BUILD_TAGS} -o ${OUTPUT_PATH} ./cmd/baton-bitbucket
 
 .PHONY: update-deps
 update-deps:

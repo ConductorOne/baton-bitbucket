@@ -9,6 +9,7 @@ import (
 	"github.com/conductorone/baton-bitbucket/pkg/connector"
 	configschema "github.com/conductorone/baton-sdk/pkg/config"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
+	"github.com/conductorone/baton-sdk/pkg/connectorrunner"
 	"github.com/conductorone/baton-sdk/pkg/types"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
@@ -28,7 +29,13 @@ var (
 func main() {
 	ctx := context.Background()
 
-	_, cmd, err := configschema.DefineConfiguration(ctx, "baton-bitbucket", getConnector, cfg)
+	_, cmd, err := configschema.DefineConfiguration(
+		ctx,
+		"baton-bitbucket",
+		getConnector,
+		cfg,
+		connectorrunner.WithDefaultCapabilitiesConnectorBuilder(&connector.Bitbucket{}),
+	)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)

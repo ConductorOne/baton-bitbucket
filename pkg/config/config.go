@@ -1,0 +1,31 @@
+package config
+
+import (
+	"github.com/conductorone/baton-sdk/pkg/field"
+)
+
+var (
+	UsernameField       = field.StringField("username", field.WithDescription("Username of administrator used to connect to the BitBucket API."))
+	PasswordField       = field.StringField("app-password", field.WithDescription("Application password used to connect to the BitBucket API."))
+	TokenField          = field.StringField("token", field.WithDescription("Access token (workspace or project scoped) used to connect to the BitBucket API."))
+	ConsumerKeyField    = field.StringField("consumer-key", field.WithDescription("OAuth consumer key used to connect to the BitBucket API via oauth."))
+	ConsumerSecretField = field.StringField("consumer-secret", field.WithDescription("The consumer secret used to connect to the BitBucket API via oauth."))
+	WorkspacesField     = field.StringSliceField("workspaces", field.WithDescription("Limit syncing to specific workspaces by specifying workspace slugs."))
+
+	ConfigurationFields = []field.SchemaField{
+		UsernameField,
+		PasswordField,
+		TokenField,
+		ConsumerKeyField,
+		ConsumerSecretField,
+		WorkspacesField,
+	}
+
+	ConfigRelations = []field.SchemaFieldRelationship{
+		field.FieldsRequiredTogether(UsernameField, PasswordField),
+		field.FieldsRequiredTogether(ConsumerKeyField, ConsumerSecretField),
+	}
+)
+
+//go:generate go run ./gen
+var Config = field.NewConfiguration(ConfigurationFields, field.WithConstraints(ConfigRelations...))

@@ -176,7 +176,7 @@ func (c *Client) filterWorkspaces(ctx context.Context, workspaces []Workspace) (
 		// We call this function in order to initialize the workspaceID's map. In that case we need to return all workspaces,
 		// so they can be filtered and only the valid ones are set in the workspaceIds map.
 		_, ok := c.workspaceIDs[workspace.Id]
-		if c.workspaceIDs != nil && len(c.workspaceIDs) > 0 && !ok {
+		if len(c.workspaceIDs) > 0 && !ok {
 			continue
 		}
 
@@ -1101,8 +1101,8 @@ func (c *Client) createRequest(
 }
 
 func handlePagination[T any](resp ListResponse[T]) ([]T, string, error) {
-	if resp.PaginationData.Next != "" {
-		return resp.Values, parsePageFromURL(resp.PaginationData.Next), nil
+	if resp.Next != "" {
+		return resp.Values, parsePageFromURL(resp.Next), nil
 	}
 
 	return resp.Values, "", nil

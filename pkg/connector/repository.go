@@ -270,7 +270,8 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 }
 
 func (r *repositoryResourceType) GetPermission(ctx context.Context, principal *v2.Resource, workspaceId, repoId string) (*bitbucket.Permission, error) {
-	if principal.Id.ResourceType == resourceTypeUser.Id {
+	switch principal.Id.ResourceType {
+	case resourceTypeUser.Id:
 		userPermission, err := r.client.GetRepoUserPermission(
 			ctx,
 			workspaceId,
@@ -282,7 +283,7 @@ func (r *repositoryResourceType) GetPermission(ctx context.Context, principal *v
 		}
 
 		return &userPermission.Permission, nil
-	} else if principal.Id.ResourceType == resourceTypeUserGroup.Id {
+	case resourceTypeUserGroup.Id:
 		_, groupSlug, err := DecomposeGroupId(principal.Id.Resource)
 		if err != nil {
 			return nil, fmt.Errorf("bitbucket-connector: failed to grant repository permission: %w", err)
@@ -299,9 +300,9 @@ func (r *repositoryResourceType) GetPermission(ctx context.Context, principal *v
 		}
 
 		return &groupPermission.Permission, nil
+	default:
+		return nil, fmt.Errorf("bitbucket-connector: invalid principal resource type: %s", principal.Id.ResourceType)
 	}
-
-	return nil, fmt.Errorf("bitbucket-connector: invalid principal resource type: %s", principal.Id.ResourceType)
 }
 
 func (r *repositoryResourceType) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {

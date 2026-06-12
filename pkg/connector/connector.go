@@ -67,22 +67,16 @@ func (bb *Bitbucket) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error
 
 // Validate hits the Bitbucket API to validate that the configured credentials are valid and compatible.
 func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, error) {
-	// get the scope of used credentials
-	user, err := bb.client.GetCurrentUser(ctx)
+	// Bitbucket Cloud teams are deprecated (CHANGE-2770). All authentication
+	// is now user-scoped, so we set user scope directly and discover
+	// workspaces via the non-deprecated workspace permissions endpoint.
+	bb.client.SetupUserScope("")
+
+	err := bb.client.SetWorkspaceIDs(ctx, bb.workspaces)
 	if err != nil {
-		return nil, fmt.Errorf("bitbucket-connector: failed to get current user: %w", err)
-	}
-	err = bb.setScope(user)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("bitbucket-connector: failed to get workspace ids: %w", err)
 	}
 
-	if bb.client.IsUserScoped() {
-		err = bb.client.SetWorkspaceIDs(ctx, bb.workspaces)
-		if err != nil {
-			return nil, fmt.Errorf("bitbucket-connector: failed to get workspace ids: %w", err)
-		}
-	}
 	return nil, nil
 }
 
@@ -102,15 +96,3 @@ func New(ctx context.Context, workspaces []string, auth uhttp.AuthCredentials) (
 	}, nil
 }
 
-func (bb *Bitbucket) setScope(user *bitbucket.User) error {
-	// check the type of user then set the scope
-	switch user.Type {
-	case "user":
-		bb.client.SetupUserScope(user.Id)
-	case "team":
-		bb.client.SetupWorkspaceScope(user.Id)
-	default:
-		return fmt.Errorf("bitbucket-connector: unsupported user type: %s", user.Type)
-	}
-	return nil
-}

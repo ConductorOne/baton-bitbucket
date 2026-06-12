@@ -14,6 +14,12 @@ type WorkspaceMember struct {
 	User User `json:"user"`
 }
 
+type WorkspacePermission struct {
+	Permission string    `json:"permission"`
+	Workspace  Workspace `json:"workspace"`
+	User       User      `json:"user"`
+}
+
 type User struct {
 	BaseResource
 	Type     string `json:"type"`

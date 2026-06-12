@@ -19,12 +19,12 @@ const (
 	BaseURL   = "https://api.bitbucket.org/2.0/"
 
 	WorkspacesBaseURL          = BaseURL + "workspaces"
+	UserWorkspacesBaseURL      = BaseURL + "user/permissions/workspaces"
 	WorkspaceBaseURL           = WorkspacesBaseURL + "/%s"
 	WorkspaceMembersBaseURL    = WorkspacesBaseURL + "/%s/members"
 	WorkspaceProjectsBaseURL   = WorkspacesBaseURL + "/%s/projects"
 	ProjectRepositoriesBaseURL = BaseURL + "repositories/%s"
 	UserBaseURL                = BaseURL + "users/%s"
-	CurrentUserBaseURL         = BaseURL + "user"
 
 	WorkspaceUserGroupsBaseURL = V1BaseURL + "groups/%s"
 	UserGroupMembersBaseURL    = WorkspaceUserGroupsBaseURL + "/%s/members"
@@ -224,28 +224,40 @@ func (c *Client) SetWorkspaceIDs(ctx context.Context, workspaceIDs []string) err
 }
 
 // GetWorkspaces lists all workspaces current user belongs to.
+// Uses GET /2.0/user/permissions/workspaces (workspace-scoped replacement
+// for the deprecated cross-workspace GET /2.0/workspaces, removed in CHANGE-2770).
 func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars PaginationVars) ([]Workspace, string, error) {
-	urlAddress, err := url.Parse(WorkspacesBaseURL)
+	urlAddress, err := url.Parse(UserWorkspacesBaseURL)
 	if err != nil {
 		return nil, "", err
 	}
 
-	var workspacesResponse ListResponse[Workspace]
+	var permissionsResponse ListResponse[WorkspacePermission]
 	err = c.get(
 		ctx,
 		urlAddress,
-		&workspacesResponse,
+		&permissionsResponse,
 		[]QueryParam{
 			&getWorkspacesVars,
-			prepareFilters(""),
 		},
 	)
 	if err != nil {
 		return nil, "", err
 	}
-	workspacesResponse.Values, err = c.filterWorkspaces(ctx, workspacesResponse.Values)
+
+	workspaces := make([]Workspace, 0, len(permissionsResponse.Values))
+	for _, wp := range permissionsResponse.Values {
+		workspaces = append(workspaces, wp.Workspace)
+	}
+
+	workspaces, err = c.filterWorkspaces(ctx, workspaces)
 	if err != nil {
 		return nil, "", err
+	}
+
+	workspacesResponse := ListResponse[Workspace]{
+		Values:         workspaces,
+		PaginationData: permissionsResponse.PaginationData,
 	}
 
 	return handlePagination(workspacesResponse)
@@ -416,30 +428,6 @@ func (c *Client) RemoveUserFromGroup(ctx context.Context, workspaceId string, gr
 	}
 
 	return nil
-}
-
-// GetCurrentUser get information about currently logged in user or team.
-func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
-	urlAddress, err := url.Parse(CurrentUserBaseURL)
-	if err != nil {
-		return nil, err
-	}
-
-	var userResponse User
-	err = c.get(
-		ctx,
-		urlAddress,
-		&userResponse,
-		[]QueryParam{
-			prepareFilters(""),
-		},
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &userResponse, nil
 }
 
 // GetUser get detail information about specified user.

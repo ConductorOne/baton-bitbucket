@@ -3,10 +3,13 @@ package connector
 import (
 	"context"
 	"fmt"
+	"net/url"
 
 	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
+	cfg "github.com/conductorone/baton-bitbucket/pkg/config"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
+	"github.com/conductorone/baton-sdk/pkg/cli"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 )
@@ -41,6 +44,12 @@ var (
 		Id:          "repository",
 		DisplayName: "Repository",
 	}
+
+	loginURL = &url.URL{
+		Scheme: "https",
+		Host:   "bitbucket.org",
+		Path:   "/site/oauth2/access_token",
+	}
 )
 
 type Bitbucket struct {
@@ -48,8 +57,8 @@ type Bitbucket struct {
 	workspaces []string
 }
 
-func (bb *Bitbucket) ResourceSyncers(_ context.Context) []connectorbuilder.ResourceSyncer {
-	return []connectorbuilder.ResourceSyncer{
+func (bb *Bitbucket) ResourceSyncers(_ context.Context) []connectorbuilder.ResourceSyncerV2 {
+	return []connectorbuilder.ResourceSyncerV2{
 		workspaceBuilder(bb.client, bb.workspaces),
 		projectBuilder(bb.client),
 		userBuilder(bb.client),
@@ -69,7 +78,7 @@ func (bb *Bitbucket) Metadata(_ context.Context) (*v2.ConnectorMetadata, error) 
 func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, error) {
 	user, err := bb.client.GetCurrentUser(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("bitbucket-connector: failed to get current user: %w", err)
+		return nil, fmt.Errorf("baton-bitbucket: failed to get current user: %w", err)
 	}
 	err = bb.setScope(user)
 	if err != nil {
@@ -79,27 +88,63 @@ func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, err
 	if bb.client.IsUserScoped() {
 		err = bb.client.SetWorkspaceIDs(ctx, bb.workspaces)
 		if err != nil {
-			return nil, fmt.Errorf("bitbucket-connector: failed to get workspace ids: %w", err)
+			return nil, fmt.Errorf("baton-bitbucket: failed to get workspace ids: %w", err)
 		}
 	}
 
 	return nil, nil
 }
 
-func New(ctx context.Context, workspaces []string, auth uhttp.AuthCredentials) (*Bitbucket, error) {
+func constructAuth(c *cfg.Bitbucket) (uhttp.AuthCredentials, error) {
+	if c.Token != "" {
+		return uhttp.NewBearerAuth(c.Token), nil
+	}
+
+	if c.Username != "" {
+		return uhttp.NewBasicAuth(c.Username, c.AppPassword), nil
+	}
+
+	if c.ConsumerKey != "" {
+		return uhttp.NewOAuth2ClientCredentials(
+			c.ConsumerKey,
+			c.ConsumerSecret,
+			loginURL,
+			nil,
+		), nil
+	}
+
+	return nil, fmt.Errorf("invalid config")
+}
+
+// New is the connector constructor matching cli.NewConnector[*cfg.Bitbucket].
+func New(ctx context.Context, c *cfg.Bitbucket, _ *cli.ConnectorOpts) (connectorbuilder.ConnectorBuilderV2, []connectorbuilder.Opt, error) {
+	accessTokenNotSet := (c.Token == "")
+	basicNotSet := (c.Username == "" || c.AppPassword == "")
+	oauthNotSet := (c.ConsumerKey == "" || c.ConsumerSecret == "")
+
+	if accessTokenNotSet && basicNotSet && oauthNotSet {
+		return nil, nil, fmt.Errorf("either an access token, username and password or consumer key and secret must be provided")
+	}
+
+	auth, err := constructAuth(c)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	httpClient, err := auth.GetClient(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("bitbucket-connector: failed to get http client: %w", err)
+		return nil, nil, fmt.Errorf("baton-bitbucket: failed to get http client: %w", err)
 	}
 
 	client, err := bitbucket.NewClient(ctx, httpClient)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+
 	return &Bitbucket{
 		client:     client,
-		workspaces: workspaces,
-	}, nil
+		workspaces: c.Workspaces,
+	}, nil, nil
 }
 
 func (bb *Bitbucket) setScope(user *bitbucket.User) error {
@@ -110,7 +155,7 @@ func (bb *Bitbucket) setScope(user *bitbucket.User) error {
 	case "team":
 		bb.client.SetupWorkspaceScope(user.Id)
 	default:
-		return fmt.Errorf("bitbucket-connector: unsupported user type: %s", user.Type)
+		return fmt.Errorf("baton-bitbucket: unsupported user type: %s", user.Type)
 	}
 	return nil
 }

@@ -82,7 +82,7 @@ func ParseEntitlementID(id string) (*v2.ResourceId, string, error) {
 
 	// Need to be at least 3 parts type:entitlement_id:slug
 	if len(parts) < 4 {
-		return nil, "", fmt.Errorf("bitbucket-connector: invalid resource id")
+		return nil, "", fmt.Errorf("baton-bitbucket: invalid resource id")
 	}
 
 	resourceId := &v2.ResourceId{

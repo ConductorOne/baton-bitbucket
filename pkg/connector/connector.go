@@ -78,7 +78,7 @@ func (bb *Bitbucket) Metadata(_ context.Context) (*v2.ConnectorMetadata, error) 
 func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, error) {
 	user, err := bb.client.GetCurrentUser(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("bitbucket-connector: failed to get current user: %w", err)
+		return nil, fmt.Errorf("baton-bitbucket: failed to get current user: %w", err)
 	}
 	err = bb.setScope(user)
 	if err != nil {
@@ -88,7 +88,7 @@ func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, err
 	if bb.client.IsUserScoped() {
 		err = bb.client.SetWorkspaceIDs(ctx, bb.workspaces)
 		if err != nil {
-			return nil, fmt.Errorf("bitbucket-connector: failed to get workspace ids: %w", err)
+			return nil, fmt.Errorf("baton-bitbucket: failed to get workspace ids: %w", err)
 		}
 	}
 
@@ -133,7 +133,7 @@ func New(ctx context.Context, c *cfg.Bitbucket, _ *cli.ConnectorOpts) (connector
 
 	httpClient, err := auth.GetClient(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("bitbucket-connector: failed to get http client: %w", err)
+		return nil, nil, fmt.Errorf("baton-bitbucket: failed to get http client: %w", err)
 	}
 
 	client, err := bitbucket.NewClient(ctx, httpClient)
@@ -155,7 +155,7 @@ func (bb *Bitbucket) setScope(user *bitbucket.User) error {
 	case "team":
 		bb.client.SetupWorkspaceScope(user.Id)
 	default:
-		return fmt.Errorf("bitbucket-connector: unsupported user type: %s", user.Type)
+		return fmt.Errorf("baton-bitbucket: unsupported user type: %s", user.Type)
 	}
 	return nil
 }

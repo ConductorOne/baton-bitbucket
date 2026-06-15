@@ -43,7 +43,7 @@ func ComposeProjectId(workspaceId string, projectId string, key string) string {
 func DecomposeProjectId(id string) (string, string, string, error) {
 	parts := strings.Split(id, ":")
 	if len(parts) != 3 {
-		return "", "", "", fmt.Errorf("bitbucket-connector: invalid project resource id")
+		return "", "", "", fmt.Errorf("baton-bitbucket: invalid project resource id")
 	}
 
 	// We need to split the project id into workspace and project id
@@ -98,7 +98,7 @@ func (p *projectResourceType) List(ctx context.Context, parentId *v2.ResourceId,
 		},
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("bitbucket-connector: failed to list projects: %w", err)
+		return nil, nil, fmt.Errorf("baton-bitbucket: failed to list projects: %w", err)
 	}
 
 	pageToken, err := bag.NextToken(nextToken)
@@ -192,7 +192,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 			},
 		)
 		if err != nil {
-			return nil, nil, fmt.Errorf("bitbucket-connector: failed to list project repositories: %w", err)
+			return nil, nil, fmt.Errorf("baton-bitbucket: failed to list project repositories: %w", err)
 		}
 
 		err = bag.Next(nextToken)
@@ -229,7 +229,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 			},
 		)
 		if err != nil {
-			return nil, nil, fmt.Errorf("bitbucket-connector: failed to list project group permissions: %w", err)
+			return nil, nil, fmt.Errorf("baton-bitbucket: failed to list project group permissions: %w", err)
 		}
 
 		err = bag.Next(nextToken)
@@ -272,7 +272,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 			},
 		)
 		if err != nil {
-			return nil, nil, fmt.Errorf("bitbucket-connector: failed to list project user permissions: %w", err)
+			return nil, nil, fmt.Errorf("baton-bitbucket: failed to list project user permissions: %w", err)
 		}
 
 		err = bag.Next(nextToken)
@@ -304,7 +304,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 		}
 
 	default:
-		return nil, nil, fmt.Errorf("bitbucket-connector: invalid grant resource type: %s", bag.ResourceTypeID())
+		return nil, nil, fmt.Errorf("baton-bitbucket: invalid grant resource type: %s", bag.ResourceTypeID())
 	}
 
 	pageToken, err := bag.Marshal()
@@ -325,7 +325,7 @@ func (p *projectResourceType) GetPermission(ctx context.Context, principal *v2.R
 			principal.Id.Resource,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("bitbucket-connector: failed to get project user permission: %w", err)
+			return nil, fmt.Errorf("baton-bitbucket: failed to get project user permission: %w", err)
 		}
 
 		return &userPermission.Permission, nil
@@ -337,12 +337,12 @@ func (p *projectResourceType) GetPermission(ctx context.Context, principal *v2.R
 			principal.Id.Resource,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("bitbucket-connector: failed to get project group permission: %w", err)
+			return nil, fmt.Errorf("baton-bitbucket: failed to get project group permission: %w", err)
 		}
 
 		return &groupPermission.Permission, nil
 	default:
-		return nil, fmt.Errorf("bitbucket-connector: invalid principal resource type: %s", principal.Id.ResourceType)
+		return nil, fmt.Errorf("baton-bitbucket: invalid principal resource type: %s", principal.Id.ResourceType)
 	}
 }
 
@@ -353,13 +353,13 @@ func (p *projectResourceType) Grant(ctx context.Context, principal *v2.Resource,
 	principalIsGroup := principal.Id.ResourceType == resourceTypeUserGroup.Id
 
 	if !principalIsUser && !principalIsGroup {
-		l.Warn(
-			"bitbucket-connector: only users and groups can be granted project permissions",
+		l.Debug(
+			"baton-bitbucket: only users and groups can be granted project permissions",
 			zap.String("principal_id", principal.Id.Resource),
 			zap.String("principal_type", principal.Id.ResourceType),
 		)
 
-		return nil, fmt.Errorf("bitbucket-connector: only users and groups can be granted project permissions")
+		return nil, fmt.Errorf("baton-bitbucket: only users and groups can be granted project permissions")
 	}
 
 	projectResourceId, slug, err := ParseEntitlementID(entitlement.Id)
@@ -374,17 +374,17 @@ func (p *projectResourceType) Grant(ctx context.Context, principal *v2.Resource,
 
 	// check if the entitlement is for repository permission
 	if slug == repoEntitlement {
-		l.Warn(
-			"bitbucket-connector: granting repository memberships is not supported",
+		l.Debug(
+			"baton-bitbucket: granting repository memberships is not supported",
 			zap.String("entitlement_id", entitlement.Id),
 		)
 
-		return nil, fmt.Errorf("bitbucket-connector: granting repository memberships is not supported")
+		return nil, fmt.Errorf("baton-bitbucket: granting repository memberships is not supported")
 	}
 
 	// check if the permission is supported project role
 	if !contains(slug, projectPermissions) {
-		return nil, fmt.Errorf("bitbucket-connector: unsupported project role: %s", slug)
+		return nil, fmt.Errorf("baton-bitbucket: unsupported project role: %s", slug)
 	}
 
 	permission, err := p.GetPermission(ctx, principal, workspaceId, projectKey)
@@ -394,8 +394,8 @@ func (p *projectResourceType) Grant(ctx context.Context, principal *v2.Resource,
 
 	// warn if the principal already has a project permission
 	if permission.Value != roleNone {
-		l.Warn(
-			"bitbucket-connector: principal already has a project permission",
+		l.Debug(
+			"baton-bitbucket: principal already has a project permission",
 		)
 	}
 
@@ -409,7 +409,7 @@ func (p *projectResourceType) Grant(ctx context.Context, principal *v2.Resource,
 			slug,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("bitbucket-connector: failed to update project user permission: %w", err)
+			return nil, fmt.Errorf("baton-bitbucket: failed to update project user permission: %w", err)
 		}
 	} else if principalIsGroup {
 		err = p.client.UpdateProjectGroupPermission(
@@ -420,7 +420,7 @@ func (p *projectResourceType) Grant(ctx context.Context, principal *v2.Resource,
 			slug,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("bitbucket-connector: failed to update project group permission: %w", err)
+			return nil, fmt.Errorf("baton-bitbucket: failed to update project group permission: %w", err)
 		}
 	}
 
@@ -436,13 +436,13 @@ func (p *projectResourceType) Revoke(ctx context.Context, grant *v2.Grant) (anno
 	principalIsGroup := principal.Id.ResourceType == resourceTypeUserGroup.Id
 
 	if !principalIsUser && !principalIsGroup {
-		l.Warn(
-			"bitbucket-connector: only users and groups can have project permissions revoked",
+		l.Debug(
+			"baton-bitbucket: only users and groups can have project permissions revoked",
 			zap.String("principal_id", principal.Id.Resource),
 			zap.String("principal_type", principal.Id.ResourceType),
 		)
 
-		return nil, fmt.Errorf("bitbucket-connector: only users and groups can have project permissions revoked")
+		return nil, fmt.Errorf("baton-bitbucket: only users and groups can have project permissions revoked")
 	}
 
 	projectResourceId, slug, err := ParseEntitlementID(entitlement.Id)
@@ -456,12 +456,12 @@ func (p *projectResourceType) Revoke(ctx context.Context, grant *v2.Grant) (anno
 	}
 
 	if slug == repoEntitlement {
-		l.Warn(
-			"bitbucket-connector: revoking repository memberships is not supported",
+		l.Debug(
+			"baton-bitbucket: revoking repository memberships is not supported",
 			zap.String("entitlement_id", entitlement.Id),
 		)
 
-		return nil, fmt.Errorf("bitbucket-connector: revoking repository memberships is not supported")
+		return nil, fmt.Errorf("baton-bitbucket: revoking repository memberships is not supported")
 	}
 
 	permission, err := p.GetPermission(ctx, principal, workspaceId, projectKey)
@@ -471,13 +471,13 @@ func (p *projectResourceType) Revoke(ctx context.Context, grant *v2.Grant) (anno
 
 	// check if the permission is supported project role
 	if !contains(slug, projectPermissions) {
-		return nil, fmt.Errorf("bitbucket-connector: unsupported project role: %s", permission.Value)
+		return nil, fmt.Errorf("baton-bitbucket: unsupported project role: %s", permission.Value)
 	}
 
 	// warn if the principal already doesnt have this project permission
 	if permission.Value == roleNone {
-		l.Warn(
-			"bitbucket-connector: principal already doesnt have this project permission",
+		l.Debug(
+			"baton-bitbucket: principal already doesnt have this project permission",
 		)
 	}
 
@@ -490,7 +490,7 @@ func (p *projectResourceType) Revoke(ctx context.Context, grant *v2.Grant) (anno
 			principal.Id.Resource,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("bitbucket-connector: failed to remove project user permission: %w", err)
+			return nil, fmt.Errorf("baton-bitbucket: failed to remove project user permission: %w", err)
 		}
 	} else if principalIsGroup {
 		err = p.client.DeleteProjectGroupPermission(
@@ -500,7 +500,7 @@ func (p *projectResourceType) Revoke(ctx context.Context, grant *v2.Grant) (anno
 			principal.Id.Resource,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("bitbucket-connector: failed to remove project group permission: %w", err)
+			return nil, fmt.Errorf("baton-bitbucket: failed to remove project group permission: %w", err)
 		}
 	}
 

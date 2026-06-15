@@ -74,7 +74,7 @@ func (u *userResourceType) List(ctx context.Context, parentId *v2.ResourceId, op
 		},
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("bitbucket-connector: failed to list user: %w", err)
+		return nil, nil, fmt.Errorf("baton-bitbucket: failed to list user: %w", err)
 	}
 
 	pageToken, err := bag.NextToken(nextToken)
@@ -87,7 +87,7 @@ func (u *userResourceType) List(ctx context.Context, parentId *v2.ResourceId, op
 		// retrieve a user to get a status
 		u, err := u.client.GetUser(ctx, user.Id)
 		if err != nil {
-			return nil, nil, fmt.Errorf("bitbucket-connector: failed to get user: %w", err)
+			return nil, nil, fmt.Errorf("baton-bitbucket: failed to get user: %w", err)
 		}
 
 		ur, err := userResource(ctx, u, parentId)

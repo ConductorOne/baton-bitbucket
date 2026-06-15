@@ -31,7 +31,7 @@ func ComposedGroupId(workspaceId, groupSlug string) string {
 func DecomposeGroupId(id string) (string, string, error) {
 	parts := strings.Split(id, ":")
 	if len(parts) != 2 {
-		return "", "", fmt.Errorf("bitbucket-connector: invalid user group resource id")
+		return "", "", fmt.Errorf("baton-bitbucket: invalid user group resource id")
 	}
 
 	return parts[0], parts[1], nil
@@ -75,12 +75,12 @@ func (ug *userGroupResourceType) List(ctx context.Context, parentId *v2.Resource
 	// V1 groups API requires the workspace slug, not UUID. Look up the workspace to get it.
 	workspace, err := ug.client.GetWorkspace(ctx, parentId.Resource)
 	if err != nil {
-		return nil, nil, fmt.Errorf("bitbucket-connector: failed to get workspace: %w", err)
+		return nil, nil, fmt.Errorf("baton-bitbucket: failed to get workspace: %w", err)
 	}
 
 	userGroups, err := ug.client.GetWorkspaceUserGroups(ctx, workspace.Slug)
 	if err != nil {
-		return nil, nil, fmt.Errorf("bitbucket-connector: failed to list userGroups: %w", err)
+		return nil, nil, fmt.Errorf("baton-bitbucket: failed to list userGroups: %w", err)
 	}
 
 	var rv []*v2.Resource
@@ -154,13 +154,13 @@ func (ug *userGroupResourceType) Grant(ctx context.Context, principal *v2.Resour
 	l := ctxzap.Extract(ctx)
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
-		l.Warn(
-			"bitbucket-connector: only users can be granted group membership",
+		l.Debug(
+			"baton-bitbucket: only users can be granted group membership",
 			zap.String("principal_id", principal.Id.String()),
 			zap.String("principal_type", principal.Id.ResourceType),
 		)
 
-		return nil, fmt.Errorf("bitbucket-connector: only users can be granted group membership")
+		return nil, fmt.Errorf("baton-bitbucket: only users can be granted group membership")
 	}
 
 	groupResourceId, _, err := ParseEntitlementID(entitlement.Id)
@@ -176,7 +176,7 @@ func (ug *userGroupResourceType) Grant(ctx context.Context, principal *v2.Resour
 	// V1 groups API requires the workspace slug, not UUID.
 	workspace, err := ug.client.GetWorkspace(ctx, workspaceId)
 	if err != nil {
-		return nil, fmt.Errorf("bitbucket-connector: failed to get workspace: %w", err)
+		return nil, fmt.Errorf("baton-bitbucket: failed to get workspace: %w", err)
 	}
 
 	userId := principal.Id.Resource
@@ -184,23 +184,23 @@ func (ug *userGroupResourceType) Grant(ctx context.Context, principal *v2.Resour
 	// check if user is already a member of the group
 	members, err := ug.client.GetUserGroupMembers(ctx, workspace.Slug, groupSlug)
 	if err != nil {
-		return nil, fmt.Errorf("bitbucket-connector: failed to get user group members: %w", err)
+		return nil, fmt.Errorf("baton-bitbucket: failed to get user group members: %w", err)
 	}
 
 	if isUserPresent(members, userId) {
-		l.Warn(
-			"bitbucket-connector: user is already a member of the group",
+		l.Debug(
+			"baton-bitbucket: user is already a member of the group",
 			zap.String("principal_id", principal.Id.String()),
 			zap.String("principal_type", principal.Id.ResourceType),
 		)
 
-		return nil, fmt.Errorf("bitbucket-connector: user is already a member of the group")
+		return nil, fmt.Errorf("baton-bitbucket: user is already a member of the group")
 	}
 
 	// add user to the group
 	err = ug.client.AddUserToGroup(ctx, workspace.Slug, groupSlug, userId)
 	if err != nil {
-		return nil, fmt.Errorf("bitbucket-connector: failed to add user to user group: %w", err)
+		return nil, fmt.Errorf("baton-bitbucket: failed to add user to user group: %w", err)
 	}
 
 	return nil, nil
@@ -213,13 +213,13 @@ func (ug *userGroupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 	entitlement := grant.Entitlement
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
-		l.Warn(
-			"bitbucket-connector: only users can have group membership revoked",
+		l.Debug(
+			"baton-bitbucket: only users can have group membership revoked",
 			zap.String("principal_id", principal.Id.String()),
 			zap.String("principal_type", principal.Id.ResourceType),
 		)
 
-		return nil, fmt.Errorf("bitbucket-connector: only users can have group membership revoked")
+		return nil, fmt.Errorf("baton-bitbucket: only users can have group membership revoked")
 	}
 
 	groupResourceId, _, err := ParseEntitlementID(entitlement.Id)
@@ -235,29 +235,29 @@ func (ug *userGroupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 	// V1 groups API requires the workspace slug, not UUID.
 	workspace, err := ug.client.GetWorkspace(ctx, workspaceId)
 	if err != nil {
-		return nil, fmt.Errorf("bitbucket-connector: failed to get workspace: %w", err)
+		return nil, fmt.Errorf("baton-bitbucket: failed to get workspace: %w", err)
 	}
 
 	userId := principal.Id.Resource
 
 	members, err := ug.client.GetUserGroupMembers(ctx, workspace.Slug, groupSlug)
 	if err != nil {
-		return nil, fmt.Errorf("bitbucket-connector: failed to get user group members: %w", err)
+		return nil, fmt.Errorf("baton-bitbucket: failed to get user group members: %w", err)
 	}
 
 	if !isUserPresent(members, userId) {
-		l.Warn(
-			"bitbucket-connector: user is not a member of the group",
+		l.Debug(
+			"baton-bitbucket: user is not a member of the group",
 			zap.String("principal_id", principal.Id.String()),
 			zap.String("principal_type", principal.Id.ResourceType),
 		)
 
-		return nil, fmt.Errorf("bitbucket-connector: user is not a member of the group")
+		return nil, fmt.Errorf("baton-bitbucket: user is not a member of the group")
 	}
 	// remove user from the group
 	err = ug.client.RemoveUserFromGroup(ctx, workspace.Slug, groupSlug, userId)
 	if err != nil {
-		return nil, fmt.Errorf("bitbucket-connector: failed to remove user from user group: %w", err)
+		return nil, fmt.Errorf("baton-bitbucket: failed to remove user from user group: %w", err)
 	}
 
 	return nil, nil

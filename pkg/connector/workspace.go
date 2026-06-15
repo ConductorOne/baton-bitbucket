@@ -60,7 +60,7 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, opts
 			},
 		)
 		if err != nil {
-			return nil, nil, fmt.Errorf("bitbucket-connector: failed to list workspace: %w", err)
+			return nil, nil, fmt.Errorf("baton-bitbucket: failed to list workspace: %w", err)
 		}
 
 		pageToken, err := bag.NextToken(nextToken)
@@ -89,13 +89,13 @@ func (w *workspaceResourceType) List(ctx context.Context, _ *v2.ResourceId, opts
 
 	workspaceId, err := w.client.WorkspaceId()
 	if err != nil {
-		return nil, nil, fmt.Errorf("bitbucket-connector: failed to get workspace id: %w", err)
+		return nil, nil, fmt.Errorf("baton-bitbucket: failed to get workspace id: %w", err)
 	}
 
 	// If the scope is a workspace/project/repo, we only want to return that one available workspace.
 	workspace, err := w.client.GetWorkspace(ctx, workspaceId)
 	if err != nil {
-		return nil, nil, fmt.Errorf("bitbucket-connector: failed to get workspace: %w", err)
+		return nil, nil, fmt.Errorf("baton-bitbucket: failed to get workspace: %w", err)
 	}
 
 	// Return empty list if the workspace is not in the list of allowed workspaces.

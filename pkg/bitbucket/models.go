@@ -10,6 +10,26 @@ type Workspace struct {
 	Name string `json:"name"`
 }
 
+type DetailedWorkspace struct {
+	Type          string     `json:"type"`
+	Administrator bool       `json:"administrator"`
+	Workspace     DWorkspace `json:"workspace"`
+}
+
+type DWorkspace struct {
+	Type  string `json:"type"`
+	Uuid  string `json:"uuid"`
+	Slug  string `json:"slug"`
+	Links struct {
+		Avatar struct {
+			Href string `json:"href"`
+		} `json:"avatar"`
+		Self struct {
+			Href string `json:"href"`
+		} `json:"self"`
+	} `json:"links"`
+}
+
 type WorkspaceMember struct {
 	User User `json:"user"`
 }

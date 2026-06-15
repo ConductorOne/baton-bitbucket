@@ -73,7 +73,13 @@ func (ug *userGroupResourceType) List(ctx context.Context, parentId *v2.Resource
 		return nil, "", nil, nil
 	}
 
-	userGroups, err := ug.client.GetWorkspaceUserGroups(ctx, parentId.Resource)
+	// V1 groups API requires the workspace slug, not UUID. Look up the workspace to get it.
+	workspace, err := ug.client.GetWorkspace(ctx, parentId.Resource)
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to get workspace: %w", err)
+	}
+
+	userGroups, err := ug.client.GetWorkspaceUserGroups(ctx, workspace.Slug)
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list userGroups: %w", err)
 	}
@@ -168,10 +174,16 @@ func (ug *userGroupResourceType) Grant(ctx context.Context, principal *v2.Resour
 		return nil, err
 	}
 
+	// V1 groups API requires the workspace slug, not UUID.
+	workspace, err := ug.client.GetWorkspace(ctx, workspaceId)
+	if err != nil {
+		return nil, fmt.Errorf("bitbucket-connector: failed to get workspace: %w", err)
+	}
+
 	userId := principal.Id.Resource
 
 	// check if user is already a member of the group
-	members, err := ug.client.GetUserGroupMembers(ctx, workspaceId, groupSlug)
+	members, err := ug.client.GetUserGroupMembers(ctx, workspace.Slug, groupSlug)
 	if err != nil {
 		return nil, fmt.Errorf("bitbucket-connector: failed to get user group members: %w", err)
 	}
@@ -187,7 +199,7 @@ func (ug *userGroupResourceType) Grant(ctx context.Context, principal *v2.Resour
 	}
 
 	// add user to the group
-	err = ug.client.AddUserToGroup(ctx, workspaceId, groupSlug, userId)
+	err = ug.client.AddUserToGroup(ctx, workspace.Slug, groupSlug, userId)
 	if err != nil {
 		return nil, fmt.Errorf("bitbucket-connector: failed to add user to user group: %w", err)
 	}
@@ -221,9 +233,15 @@ func (ug *userGroupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 		return nil, err
 	}
 
+	// V1 groups API requires the workspace slug, not UUID.
+	workspace, err := ug.client.GetWorkspace(ctx, workspaceId)
+	if err != nil {
+		return nil, fmt.Errorf("bitbucket-connector: failed to get workspace: %w", err)
+	}
+
 	userId := principal.Id.Resource
 
-	members, err := ug.client.GetUserGroupMembers(ctx, workspaceId, groupSlug)
+	members, err := ug.client.GetUserGroupMembers(ctx, workspace.Slug, groupSlug)
 	if err != nil {
 		return nil, fmt.Errorf("bitbucket-connector: failed to get user group members: %w", err)
 	}
@@ -237,8 +255,8 @@ func (ug *userGroupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (a
 
 		return nil, fmt.Errorf("bitbucket-connector: user is not a member of the group")
 	}
-	// add user to the group
-	err = ug.client.RemoveUserFromGroup(ctx, workspaceId, groupSlug, userId)
+	// remove user from the group
+	err = ug.client.RemoveUserFromGroup(ctx, workspace.Slug, groupSlug, userId)
 	if err != nil {
 		return nil, fmt.Errorf("bitbucket-connector: failed to remove user from user group: %w", err)
 	}

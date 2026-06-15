@@ -18,6 +18,7 @@ const (
 	V1BaseURL = "https://api.bitbucket.org/1.0/"
 	BaseURL   = "https://api.bitbucket.org/2.0/"
 
+	UserWorkspacesBaseURL      = BaseURL + "user/workspaces"
 	WorkspacesBaseURL          = BaseURL + "workspaces"
 	WorkspaceBaseURL           = WorkspacesBaseURL + "/%s"
 	WorkspaceMembersBaseURL    = WorkspacesBaseURL + "/%s/members"
@@ -133,7 +134,7 @@ func (c *Client) checkPermissions(ctx context.Context, workspace *Workspace) (bo
 		l.Error(
 			"missing permission to list object in workspace",
 			zap.String("workspace", workspace.Slug),
-			zap.String("workspace id", workspace.Id),
+			zap.String("workspace_uuid", workspace.Id),
 			zap.String("object", obj),
 			zap.Error(err),
 		)
@@ -142,7 +143,7 @@ func (c *Client) checkPermissions(ctx context.Context, workspace *Workspace) (bo
 		Limit: 1,
 		Page:  "",
 	}
-	_, err := c.GetWorkspaceUserGroups(ctx, workspace.Id)
+	_, err := c.GetWorkspaceUserGroups(ctx, workspace.Slug)
 	if err != nil {
 		if isPermissionDeniedErr(err) {
 			logMissingPermission("userGroups", err)
@@ -150,7 +151,7 @@ func (c *Client) checkPermissions(ctx context.Context, workspace *Workspace) (bo
 		}
 		return false, err
 	}
-	_, _, err = c.GetWorkspaceMembers(ctx, workspace.Id, paginationVars)
+	_, _, err = c.GetWorkspaceMembers(ctx, workspace.Slug, paginationVars)
 	if err != nil {
 		if isPermissionDeniedErr(err) {
 			logMissingPermission("users", err)
@@ -158,7 +159,7 @@ func (c *Client) checkPermissions(ctx context.Context, workspace *Workspace) (bo
 		}
 		return false, err
 	}
-	_, _, err = c.GetWorkspaceProjects(ctx, workspace.Id, paginationVars)
+	_, _, err = c.GetWorkspaceProjects(ctx, workspace.Slug, paginationVars)
 	if err != nil {
 		if isPermissionDeniedErr(err) {
 			logMissingPermission("projects", err)
@@ -192,6 +193,7 @@ func (c *Client) SetWorkspaceIDs(ctx context.Context, workspaceIDs []string) err
 	if !c.IsUserScoped() {
 		return status.Error(codes.InvalidArgument, "client is not user scoped")
 	}
+
 	c.workspaceIDs = make(map[string]bool)
 	givenWorkspaceIDs := make(map[string]bool)
 	for _, workspaceId := range workspaceIDs {
@@ -205,7 +207,8 @@ func (c *Client) SetWorkspaceIDs(ctx context.Context, workspaceIDs []string) err
 
 	for _, workspace := range workspaces {
 		workspace := workspace
-		if _, ok := givenWorkspaceIDs[workspace.Id]; !ok && len(givenWorkspaceIDs) > 0 {
+		// --workspaces flag accepts slugs; UUID is stored as the map key for downstream consistency
+		if _, ok := givenWorkspaceIDs[workspace.Slug]; !ok && len(givenWorkspaceIDs) > 0 {
 			continue
 		}
 		ok, err := c.checkPermissions(ctx, &workspace)
@@ -224,17 +227,19 @@ func (c *Client) SetWorkspaceIDs(ctx context.Context, workspaceIDs []string) err
 }
 
 // GetWorkspaces lists all workspaces current user belongs to.
+// The /2.0/user/workspaces endpoint wraps each workspace in a workspace_access envelope;
+// this method unwraps it and returns canonical Workspace values.
 func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars PaginationVars) ([]Workspace, string, error) {
-	urlAddress, err := url.Parse(WorkspacesBaseURL)
+	urlAddress, err := url.Parse(UserWorkspacesBaseURL)
 	if err != nil {
 		return nil, "", err
 	}
 
-	var workspacesResponse ListResponse[Workspace]
+	var accessResponse ListResponse[DetailedWorkspace]
 	err = c.get(
 		ctx,
 		urlAddress,
-		&workspacesResponse,
+		&accessResponse,
 		[]QueryParam{
 			&getWorkspacesVars,
 			prepareFilters(""),
@@ -243,6 +248,15 @@ func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars Pagination
 	if err != nil {
 		return nil, "", err
 	}
+
+	workspacesResponse := ListResponse[Workspace]{PaginationData: accessResponse.PaginationData}
+	for _, item := range accessResponse.Values {
+		workspacesResponse.Values = append(workspacesResponse.Values, Workspace{
+			BaseResource: BaseResource{Id: item.Workspace.Uuid},
+			Slug:         item.Workspace.Slug,
+		})
+	}
+
 	workspacesResponse.Values, err = c.filterWorkspaces(ctx, workspacesResponse.Values)
 	if err != nil {
 		return nil, "", err
@@ -291,9 +305,7 @@ func (c *Client) GetWorkspace(ctx context.Context, workspaceId string) (*Workspa
 		ctx,
 		urlAddress,
 		&workspaceResponse,
-		[]QueryParam{
-			prepareFilters(""),
-		},
+		[]QueryParam{prepareFilters("")},
 	)
 	if err != nil {
 		if isPermissionDeniedErr(err) {

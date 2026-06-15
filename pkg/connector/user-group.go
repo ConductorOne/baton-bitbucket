@@ -8,7 +8,6 @@ import (
 	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
@@ -39,7 +38,7 @@ func DecomposeGroupId(id string) (string, string, error) {
 }
 
 // Create a new connector resource for an Bitbucket UserGroup.
-func userGroupResource(ctx context.Context, userGroup *bitbucket.UserGroup, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
+func userGroupResource(_ context.Context, userGroup *bitbucket.UserGroup, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
 	userIDsTotal := len(userGroup.Members)
 	profile := map[string]interface{}{
 		"userGroup_name":       userGroup.Name,
@@ -68,20 +67,20 @@ func userGroupResource(ctx context.Context, userGroup *bitbucket.UserGroup, pare
 	return resource, nil
 }
 
-func (ug *userGroupResourceType) List(ctx context.Context, parentId *v2.ResourceId, _ *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (ug *userGroupResourceType) List(ctx context.Context, parentId *v2.ResourceId, _ rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
 	if parentId == nil {
-		return nil, "", nil, nil
+		return nil, &rs.SyncOpResults{}, nil
 	}
 
 	// V1 groups API requires the workspace slug, not UUID. Look up the workspace to get it.
 	workspace, err := ug.client.GetWorkspace(ctx, parentId.Resource)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to get workspace: %w", err)
+		return nil, nil, fmt.Errorf("bitbucket-connector: failed to get workspace: %w", err)
 	}
 
 	userGroups, err := ug.client.GetWorkspaceUserGroups(ctx, workspace.Slug)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list userGroups: %w", err)
+		return nil, nil, fmt.Errorf("bitbucket-connector: failed to list userGroups: %w", err)
 	}
 
 	var rv []*v2.Resource
@@ -90,16 +89,16 @@ func (ug *userGroupResourceType) List(ctx context.Context, parentId *v2.Resource
 
 		gr, err := userGroupResource(ctx, &userGroupCopy, parentId)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		rv = append(rv, gr)
 	}
 
-	return rv, "", nil, nil
+	return rv, &rs.SyncOpResults{}, nil
 }
 
-func (ug *userGroupResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (ug *userGroupResourceType) Entitlements(_ context.Context, resource *v2.Resource, _ rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
 	var rv []*v2.Entitlement
 	assignmentOptions := []ent.EntitlementOption{
 		ent.WithGrantableTo(resourceTypeUser),
@@ -114,18 +113,18 @@ func (ug *userGroupResourceType) Entitlements(ctx context.Context, resource *v2.
 		assignmentOptions...,
 	))
 
-	return rv, "", nil, nil
+	return rv, &rs.SyncOpResults{}, nil
 }
 
-func (ug *userGroupResourceType) Grants(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
+func (ug *userGroupResourceType) Grants(_ context.Context, resource *v2.Resource, _ rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
 	userGroupTrait, err := rs.GetGroupTrait(resource)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	userIDsString, ok := rs.GetProfileStringValue(userGroupTrait.Profile, "userGroup_members")
 	if !ok {
-		return nil, "", nil, nil
+		return nil, &rs.SyncOpResults{}, nil
 	}
 
 	userIDs := strings.Split(userIDsString, ",")
@@ -135,7 +134,7 @@ func (ug *userGroupResourceType) Grants(ctx context.Context, resource *v2.Resour
 	for _, id := range userIDs {
 		rID, err := rs.NewResourceID(resourceTypeUser, id)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		rv = append(
@@ -148,7 +147,7 @@ func (ug *userGroupResourceType) Grants(ctx context.Context, resource *v2.Resour
 		)
 	}
 
-	return rv, "", nil, nil
+	return rv, &rs.SyncOpResults{}, nil
 }
 
 func (ug *userGroupResourceType) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {

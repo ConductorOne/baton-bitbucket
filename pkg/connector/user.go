@@ -6,8 +6,6 @@ import (
 
 	"github.com/conductorone/baton-bitbucket/pkg/bitbucket"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
-	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 )
 
@@ -21,7 +19,7 @@ func (u *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 }
 
 // Create a new connector resource for an Bitbucket user.
-func userResource(ctx context.Context, user *bitbucket.User, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
+func userResource(_ context.Context, user *bitbucket.User, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
 	firstName, lastName := splitFullName(user.Name)
 
 	profile := map[string]interface{}{
@@ -56,15 +54,15 @@ func userResource(ctx context.Context, user *bitbucket.User, parentResourceID *v
 	return resource, nil
 }
 
-func (u *userResourceType) List(ctx context.Context, parentId *v2.ResourceId, token *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (u *userResourceType) List(ctx context.Context, parentId *v2.ResourceId, opts rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
 	if parentId == nil {
-		return nil, "", nil, nil
+		return nil, &rs.SyncOpResults{}, nil
 	}
 
 	// parse the token
-	bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+	bag, err := parsePageToken(opts.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	users, nextToken, err := u.client.GetWorkspaceMembers(
@@ -76,12 +74,12 @@ func (u *userResourceType) List(ctx context.Context, parentId *v2.ResourceId, to
 		},
 	)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list user: %w", err)
+		return nil, nil, fmt.Errorf("bitbucket-connector: failed to list user: %w", err)
 	}
 
 	pageToken, err := bag.NextToken(nextToken)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	var rv []*v2.Resource
@@ -89,26 +87,26 @@ func (u *userResourceType) List(ctx context.Context, parentId *v2.ResourceId, to
 		// retrieve a user to get a status
 		u, err := u.client.GetUser(ctx, user.Id)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to get user: %w", err)
+			return nil, nil, fmt.Errorf("bitbucket-connector: failed to get user: %w", err)
 		}
 
 		ur, err := userResource(ctx, u, parentId)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		rv = append(rv, ur)
 	}
 
-	return rv, pageToken, nil, nil
+	return rv, &rs.SyncOpResults{NextPageToken: pageToken}, nil
 }
 
-func (u *userResourceType) Entitlements(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+func (u *userResourceType) Entitlements(_ context.Context, _ *v2.Resource, _ rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
+	return nil, &rs.SyncOpResults{}, nil
 }
 
-func (u *userResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+func (u *userResourceType) Grants(_ context.Context, _ *v2.Resource, _ rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
+	return nil, &rs.SyncOpResults{}, nil
 }
 
 func userBuilder(client *bitbucket.Client) *userResourceType {

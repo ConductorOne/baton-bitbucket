@@ -78,15 +78,15 @@ func projectResource(ctx context.Context, project *bitbucket.Project, parentReso
 	return resource, nil
 }
 
-func (p *projectResourceType) List(ctx context.Context, parentId *v2.ResourceId, token *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (p *projectResourceType) List(ctx context.Context, parentId *v2.ResourceId, opts rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
 	if parentId == nil {
-		return nil, "", nil, nil
+		return nil, &rs.SyncOpResults{}, nil
 	}
 
 	// parse the token
-	bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeProject.Id})
+	bag, err := parsePageToken(opts.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeProject.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	projects, nextToken, err := p.client.GetWorkspaceProjects(
@@ -98,12 +98,12 @@ func (p *projectResourceType) List(ctx context.Context, parentId *v2.ResourceId,
 		},
 	)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list projects: %w", err)
+		return nil, nil, fmt.Errorf("bitbucket-connector: failed to list projects: %w", err)
 	}
 
 	pageToken, err := bag.NextToken(nextToken)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	var rv []*v2.Resource
@@ -112,16 +112,16 @@ func (p *projectResourceType) List(ctx context.Context, parentId *v2.ResourceId,
 
 		pr, err := projectResource(ctx, &projectCopy, parentId)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		rv = append(rv, pr)
 	}
 
-	return rv, pageToken, nil, nil
+	return rv, &rs.SyncOpResults{NextPageToken: pageToken}, nil
 }
 
-func (p *projectResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (p *projectResourceType) Entitlements(_ context.Context, resource *v2.Resource, _ rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
 	var rv []*v2.Entitlement
 	assignmentOptions := []ent.EntitlementOption{
 		ent.WithGrantableTo(resourceTypeRepository),
@@ -151,18 +151,18 @@ func (p *projectResourceType) Entitlements(ctx context.Context, resource *v2.Res
 		))
 	}
 
-	return rv, "", nil, nil
+	return rv, &rs.SyncOpResults{}, nil
 }
 
-func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	bag, err := parsePageToken(token.Token, resource.Id)
+func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource, opts rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
+	bag, err := parsePageToken(opts.PageToken.Token, resource.Id)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	workspaceId, projectId, projectKey, err := DecomposeProjectId(resource.Id.Resource)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	var rv []*v2.Grant
@@ -192,19 +192,19 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 			},
 		)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list project repositories: %w", err)
+			return nil, nil, fmt.Errorf("bitbucket-connector: failed to list project repositories: %w", err)
 		}
 
 		err = bag.Next(nextToken)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		for _, repo := range repos {
 			repoCopy := repo
 			rr, err := repositoryResource(ctx, &repoCopy, &v2.ResourceId{Resource: resource.Id.Resource})
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
 
 			rv = append(
@@ -229,12 +229,12 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 			},
 		)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list project group permissions: %w", err)
+			return nil, nil, fmt.Errorf("bitbucket-connector: failed to list project group permissions: %w", err)
 		}
 
 		err = bag.Next(nextToken)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		for _, permission := range permissions {
@@ -247,7 +247,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 
 			gr, err := userGroupResource(ctx, &groupCopy, &v2.ResourceId{Resource: workspaceId})
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
 
 			rv = append(
@@ -272,12 +272,12 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 			},
 		)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list project user permissions: %w", err)
+			return nil, nil, fmt.Errorf("bitbucket-connector: failed to list project user permissions: %w", err)
 		}
 
 		err = bag.Next(nextToken)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		for _, permission := range permissions {
@@ -290,7 +290,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 
 			ur, err := userResource(ctx, &userCopy, &v2.ResourceId{Resource: workspaceId})
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
 
 			rv = append(
@@ -304,15 +304,15 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 		}
 
 	default:
-		return nil, "", nil, fmt.Errorf("bitbucket-connector: invalid grant resource type: %s", bag.ResourceTypeID())
+		return nil, nil, fmt.Errorf("bitbucket-connector: invalid grant resource type: %s", bag.ResourceTypeID())
 	}
 
 	pageToken, err := bag.Marshal()
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
-	return rv, pageToken, nil, nil
+	return rv, &rs.SyncOpResults{NextPageToken: pageToken}, nil
 }
 
 func (p *projectResourceType) GetPermission(ctx context.Context, principal *v2.Resource, workspaceId, projectKey string) (*bitbucket.Permission, error) {

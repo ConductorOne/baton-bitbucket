@@ -50,7 +50,7 @@ func DecomposeRepositoryId(repositoryId string) (string, string, error) {
 }
 
 // Create a new connector resource for an Bitbucket Repository.
-func repositoryResource(ctx context.Context, repository *bitbucket.Repository, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
+func repositoryResource(_ context.Context, repository *bitbucket.Repository, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
 	profile := map[string]interface{}{
 		"repository_id":        repository.Id,
 		"repository_name":      repository.Name,
@@ -74,20 +74,20 @@ func repositoryResource(ctx context.Context, repository *bitbucket.Repository, p
 	return resource, nil
 }
 
-func (r *repositoryResourceType) List(ctx context.Context, parentId *v2.ResourceId, token *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (r *repositoryResourceType) List(ctx context.Context, parentId *v2.ResourceId, opts rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
 	if parentId == nil {
-		return nil, "", nil, nil
+		return nil, &rs.SyncOpResults{}, nil
 	}
 
 	// parse the token
-	bag, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeRepository.Id})
+	bag, err := parsePageToken(opts.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeRepository.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	workspaceId, projectId, _, err := DecomposeProjectId(parentId.Resource)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	repositories, nextToken, err := r.client.GetProjectRepos(
@@ -100,12 +100,12 @@ func (r *repositoryResourceType) List(ctx context.Context, parentId *v2.Resource
 		},
 	)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list repositories: %w", err)
+		return nil, nil, fmt.Errorf("bitbucket-connector: failed to list repositories: %w", err)
 	}
 
 	pageToken, err := bag.NextToken(nextToken)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	var rv []*v2.Resource
@@ -114,16 +114,16 @@ func (r *repositoryResourceType) List(ctx context.Context, parentId *v2.Resource
 
 		tResource, err := repositoryResource(ctx, &repositoryCopy, parentId)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		rv = append(rv, tResource)
 	}
 
-	return rv, pageToken, nil, nil
+	return rv, &rs.SyncOpResults{NextPageToken: pageToken}, nil
 }
 
-func (r *repositoryResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (r *repositoryResourceType) Entitlements(_ context.Context, resource *v2.Resource, _ rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
 	var rv []*v2.Entitlement
 
 	// create entitlements for each repository role (read, write, admin)
@@ -141,23 +141,23 @@ func (r *repositoryResourceType) Entitlements(ctx context.Context, resource *v2.
 		))
 	}
 
-	return rv, "", nil, nil
+	return rv, &rs.SyncOpResults{}, nil
 }
 
-func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	bag, err := parsePageToken(token.Token, resource.Id)
+func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resource, opts rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
+	bag, err := parsePageToken(opts.PageToken.Token, resource.Id)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	composedProjectId, repositoryId, err := DecomposeRepositoryId(resource.Id.Resource)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	workspaceId, _, _, err := DecomposeProjectId(composedProjectId)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	var rv []*v2.Grant
@@ -183,12 +183,12 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 			},
 		)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list repository group permissions: %w", err)
+			return nil, nil, fmt.Errorf("bitbucket-connector: failed to list repository group permissions: %w", err)
 		}
 
 		err = bag.Next(nextToken)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		for _, permission := range permissions {
@@ -201,7 +201,7 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 
 			gr, err := userGroupResource(ctx, &groupCopy, &v2.ResourceId{Resource: workspaceId})
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
 
 			rv = append(
@@ -226,12 +226,12 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 			},
 		)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("bitbucket-connector: failed to list repository user permissions: %w", err)
+			return nil, nil, fmt.Errorf("bitbucket-connector: failed to list repository user permissions: %w", err)
 		}
 
 		err = bag.Next(nextToken)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		for _, permission := range permissions {
@@ -244,7 +244,7 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 
 			ur, err := userResource(ctx, &memberCopy, &v2.ResourceId{Resource: workspaceId})
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
 
 			rv = append(
@@ -258,15 +258,15 @@ func (r *repositoryResourceType) Grants(ctx context.Context, resource *v2.Resour
 		}
 
 	default:
-		return nil, "", nil, fmt.Errorf("bitbucket-connector: invalid grant resource type: %s", bag.ResourceTypeID())
+		return nil, nil, fmt.Errorf("bitbucket-connector: invalid grant resource type: %s", bag.ResourceTypeID())
 	}
 
 	pageToken, err := bag.Marshal()
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
-	return rv, pageToken, nil, nil
+	return rv, &rs.SyncOpResults{NextPageToken: pageToken}, nil
 }
 
 func (r *repositoryResourceType) GetPermission(ctx context.Context, principal *v2.Resource, workspaceId, repoId string) (*bitbucket.Permission, error) {

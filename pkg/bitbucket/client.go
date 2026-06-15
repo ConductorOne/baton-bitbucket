@@ -235,7 +235,7 @@ func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars Pagination
 		return nil, "", err
 	}
 
-	var accessResponse ListResponse[DetailedWorkspace]
+	var accessResponse ListResponse[WorkspaceAccess]
 	err = c.get(
 		ctx,
 		urlAddress,
@@ -252,7 +252,7 @@ func (c *Client) GetWorkspaces(ctx context.Context, getWorkspacesVars Pagination
 	workspacesResponse := ListResponse[Workspace]{PaginationData: accessResponse.PaginationData}
 	for _, item := range accessResponse.Values {
 		workspacesResponse.Values = append(workspacesResponse.Values, Workspace{
-			BaseResource: BaseResource{Id: item.Workspace.Uuid},
+			BaseResource: BaseResource{Id: item.Workspace.UUID},
 			Slug:         item.Workspace.Slug,
 		})
 	}

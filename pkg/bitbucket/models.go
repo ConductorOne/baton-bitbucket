@@ -10,6 +10,18 @@ type Workspace struct {
 	Name string `json:"name"`
 }
 
+type WorkspaceAccess struct {
+	Type          string        `json:"type"`
+	Administrator bool          `json:"administrator"`
+	Workspace     WorkspaceBase `json:"workspace"`
+}
+
+type WorkspaceBase struct {
+	Type string `json:"type"`
+	UUID string `json:"uuid"`
+	Slug string `json:"slug"`
+}
+
 type WorkspaceMember struct {
 	User User `json:"user"`
 }

@@ -48,7 +48,7 @@ type Bitbucket struct {
 	workspaces []string
 }
 
-func (bb *Bitbucket) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
+func (bb *Bitbucket) ResourceSyncers(_ context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
 		workspaceBuilder(bb.client, bb.workspaces),
 		projectBuilder(bb.client),
@@ -59,7 +59,7 @@ func (bb *Bitbucket) ResourceSyncers(ctx context.Context) []connectorbuilder.Res
 }
 
 // Metadata returns metadata about the connector.
-func (bb *Bitbucket) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
+func (bb *Bitbucket) Metadata(_ context.Context) (*v2.ConnectorMetadata, error) {
 	return &v2.ConnectorMetadata{
 		DisplayName: "Bitbucket",
 	}, nil
@@ -67,7 +67,6 @@ func (bb *Bitbucket) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error
 
 // Validate hits the Bitbucket API to validate that the configured credentials are valid and compatible.
 func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, error) {
-	// get the scope of used credentials
 	user, err := bb.client.GetCurrentUser(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("bitbucket-connector: failed to get current user: %w", err)
@@ -83,6 +82,7 @@ func (bb *Bitbucket) Validate(ctx context.Context) (annotations.Annotations, err
 			return nil, fmt.Errorf("bitbucket-connector: failed to get workspace ids: %w", err)
 		}
 	}
+
 	return nil, nil
 }
 

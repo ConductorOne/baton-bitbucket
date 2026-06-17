@@ -22,17 +22,20 @@ var (
 		field.WithDisplayName("Access token"),
 		field.WithDescription("Access token (workspace or project scoped) used to connect to the Bitbucket API."),
 		field.WithIsSecret(true),
+		field.WithExportTarget(field.ExportTargetCLIOnly),
 	)
 	ConsumerKeyField = field.StringField(
 		"consumer-key",
 		field.WithDisplayName("Consumer key"),
 		field.WithDescription("OAuth consumer key used to connect to the Bitbucket API via OAuth."),
+		field.WithExportTarget(field.ExportTargetCLIOnly),
 	)
 	ConsumerSecretField = field.StringField(
 		"consumer-secret",
 		field.WithDisplayName("Consumer Secret"),
 		field.WithDescription("The consumer secret used to connect to the Bitbucket API via OAuth."),
 		field.WithIsSecret(true),
+		field.WithExportTarget(field.ExportTargetCLIOnly),
 	)
 	WorkspacesField = field.StringSliceField(
 		"workspaces",

@@ -3,7 +3,7 @@ module github.com/conductorone/baton-bitbucket
 go 1.25.2
 
 require (
-	github.com/conductorone/baton-sdk v0.26.0
+	github.com/conductorone/baton-sdk v0.28.0
 	github.com/ennyjfrick/ruleguard-logfatal v0.0.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
@@ -16,9 +16,9 @@ require (
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/aws/aws-lambda-go v1.47.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.88.5 // indirect
-	github.com/conductorone/dpop v0.2.6 // indirect
-	github.com/conductorone/dpop/integrations/dpop_grpc v0.2.4 // indirect
-	github.com/conductorone/dpop/integrations/dpop_oauth2 v0.2.5 // indirect
+	github.com/conductorone/dpop v0.3.0 // indirect
+	github.com/conductorone/dpop/integrations/dpop_grpc v0.3.0 // indirect
+	github.com/conductorone/dpop/integrations/dpop_oauth2 v0.3.0 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
